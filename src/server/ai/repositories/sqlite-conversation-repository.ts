@@ -45,6 +45,27 @@ export class SqliteConversationRepository implements ConversationRepository {
     input: CreateConversationRecordInput,
   ): Promise<ConversationSummary> {
     const now = new Date().toISOString();
+
+    if (input.projectId) {
+      this.db
+        .prepare(
+          `
+            INSERT OR IGNORE INTO projects (
+              id, workspace_id, name, created_at, updated_at
+            ) VALUES (
+              @id, @workspace_id, @name, @created_at, @updated_at
+            )
+          `,
+        )
+        .run({
+          id: input.projectId,
+          workspace_id: input.workspaceId ?? null,
+          name: input.projectId,
+          created_at: now,
+          updated_at: now,
+        });
+    }
+
     this.db
       .prepare(
         `

@@ -2,12 +2,17 @@ import { z } from "zod";
 
 const aiConfigSchema = z.object({
   ollamaBaseUrl: z.string().url().default("http://127.0.0.1:11434"),
-  defaultChatModel: z.enum([
-    "qwen2.5:7b-instruct",
-    "qwen2.5:14b-instruct",
-    "phi3:mini",
-    "phi3:medium",
-  ]),
+  defaultChatModel: z
+    .enum([
+      "llama3:8b-instruct",
+      "llama3.1:8b-instruct",
+      "llama3.2:3b-instruct",
+      "qwen2.5:7b-instruct",
+      "qwen2.5:14b-instruct",
+      "phi3:mini",
+      "phi3:medium",
+    ])
+    .default("llama3.1:8b-instruct"),
   sqlitePath: z.string().min(1).default("./data/vyrix.sqlite"),
   chatHistoryMessageLimit: z.number().int().min(4).default(20),
   requestTimeoutMs: z.number().int().min(5_000).default(120_000),

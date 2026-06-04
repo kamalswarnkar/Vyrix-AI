@@ -7,7 +7,7 @@ This document is written for contributors building the AI subsystem inside a Nex
 Build in this order because each later phase depends on stable contracts from earlier work:
 
 1. `Phase 1`: local model runtime, chat transport, streaming, conversations
-2. `Phase 2`: document ingestion, parsing, chunking, embeddings, vector indexes
+2. `Phase 2`: workspace context, document upload, PDF/image parsing, chunking, embeddings, vector indexes
 3. `Phase 3`: retrieval orchestration, context injection, research assistant behaviors
 4. `Phase 4`: roadmap generation and critical analysis engines
 
@@ -15,7 +15,7 @@ Why this order is correct:
 
 - Chat without retrieval lets us validate the local inference runtime early.
 - Streaming and conversations must be stable before UI teams wire the assistant.
-- Retrieval depends on ingestion quality, not the other way around.
+- Retrieval depends on workspace, PDF, and image ingestion quality, not the other way around.
 - Roadmap and analysis engines are prompt- and workflow-level products built on top of chat + RAG.
 
 ## 2. Target Module Boundaries
@@ -71,7 +71,7 @@ Rules:
 - `server/db/sqlite` owns local-first persistence for conversations, documents, chunks, and index metadata.
 - `server/db/mongo` is only for cloud auth/session/usage telemetry and must stay non-critical for offline behavior.
 
-## 3. Phase 1: Ollama Integration, Local Qwen Inference, Chat API, Streaming, Conversation Management
+## 3. Phase 1: Ollama Integration, Local Llama 3 Inference, Chat API, Streaming, Conversation Management
 
 ### Goal
 
@@ -87,7 +87,7 @@ flowchart LR
     Service --> Repo["Conversation Repository (SQLite + IndexedDB cache)"]
     Service --> Adapter["Ollama Adapter"]
     Adapter --> Ollama["Ollama Local Server"]
-    Ollama --> Model["Qwen / Phi model"]
+    Ollama --> Model["Llama 3 / Qwen / Phi model"]
     Service --> Stream["SSE/Event Stream"]
     Stream --> UI
 ```
@@ -238,7 +238,9 @@ sequenceDiagram
 - Save messages separately from conversations. Do not store giant JSON blobs per conversation row.
 - Persist the assistant message only after the stream completes, but persist the user message before inference begins.
 - Include `requestId` on every inference for logging and replay.
-- Keep provider abstraction generic enough to support `ollama:qwen2.5:7b-instruct` and `ollama:phi3`.
+- Keep provider abstraction generic enough to support Llama 3, Qwen, and Phi models through Ollama.
+- Inject a research-assistant system prompt before chat history so the local model behaves like a PhD/research student assistant.
+- Treat workspace excerpts, PDF chunks, OCR text, and image summaries as explicit context. Do not imply that raw files were read unless their extracted context is present.
 
 ### Testing Strategy
 

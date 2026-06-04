@@ -20,6 +20,39 @@ export interface ModelDefinition {
 }
 
 export const MODEL_REGISTRY: Record<AiModelId, ModelDefinition> = {
+  "llama3:8b-instruct": {
+    id: "llama3:8b-instruct",
+    provider: "ollama",
+    label: "Llama 3 8B Instruct",
+    contextWindow: 8_192,
+    defaultTemperature: 0.2,
+    defaultMaxTokens: 1_024,
+    recommendedUseCases: ["chat", "research", "analysis"],
+    resourceProfile: "medium",
+    fallbackModelId: "llama3.2:3b-instruct",
+  },
+  "llama3.1:8b-instruct": {
+    id: "llama3.1:8b-instruct",
+    provider: "ollama",
+    label: "Llama 3.1 8B Instruct",
+    contextWindow: 128_000,
+    defaultTemperature: 0.2,
+    defaultMaxTokens: 1_536,
+    recommendedUseCases: ["chat", "research", "roadmap", "analysis"],
+    resourceProfile: "medium",
+    fallbackModelId: "llama3:8b-instruct",
+  },
+  "llama3.2:3b-instruct": {
+    id: "llama3.2:3b-instruct",
+    provider: "ollama",
+    label: "Llama 3.2 3B Instruct",
+    contextWindow: 128_000,
+    defaultTemperature: 0.2,
+    defaultMaxTokens: 768,
+    recommendedUseCases: ["chat", "lightweight-chat"],
+    resourceProfile: "low",
+    fallbackModelId: "llama3:8b-instruct",
+  },
   "qwen2.5:7b-instruct": {
     id: "qwen2.5:7b-instruct",
     provider: "ollama",

@@ -1,6 +1,9 @@
 export type AiProvider = "ollama";
 
 export type AiModelId =
+  | "llama3:8b-instruct"
+  | "llama3.1:8b-instruct"
+  | "llama3.2:3b-instruct"
   | "qwen2.5:7b-instruct"
   | "qwen2.5:14b-instruct"
   | "phi3:mini"
@@ -14,6 +17,24 @@ export interface ChatAttachmentRef {
   documentId: string;
   chunkIds?: string[];
   label?: string;
+  kind?: "pdf" | "image" | "text" | "workspace";
+  summary?: string;
+}
+
+export interface WorkspaceContextRef {
+  path: string;
+  kind: "file" | "directory";
+  language?: string;
+  summary?: string;
+  excerpt?: string;
+}
+
+export interface ChatContextSelection {
+  includeWorkspace?: boolean;
+  workspaceRefs?: WorkspaceContextRef[];
+  attachmentRefs?: ChatAttachmentRef[];
+  retrievalQuery?: string;
+  topK?: number;
 }
 
 export interface ConversationSummary {
@@ -64,6 +85,7 @@ export interface CreateChatCompletionRequest {
   provider: AiProvider;
   message: string;
   attachments?: ChatAttachmentRef[];
+  context?: ChatContextSelection;
   stream?: boolean;
   temperature?: number;
   maxTokens?: number;

@@ -9,6 +9,8 @@ export type DocumentStatus =
 
 export type DocumentKind =
   | "pdf"
+  | "png"
+  | "jpeg"
   | "docx"
   | "txt"
   | "md"
@@ -36,6 +38,8 @@ export interface ParsedDocumentContent {
   documentId: string;
   plainText: string;
   pageCount?: number;
+  imageCount?: number;
+  altText?: string[];
   headings?: string[];
   language?: string;
   extractedAt: string;
@@ -67,6 +71,9 @@ export interface EmbeddingVectorRecord {
 
 export interface UploadDocumentResponse {
   document: UploadedDocument;
+  chunksCreated: number;
+  extractedText?: string;
+  warning?: string;
 }
 
 export interface RetrieveDocumentRequest {
@@ -74,4 +81,16 @@ export interface RetrieveDocumentRequest {
   documentId?: string;
   query: string;
   topK?: number;
+}
+
+export interface UploadDocumentRequest {
+  projectId: string;
+  workspaceId?: string;
+  fileName: string;
+  mimeType: string;
+  contentBase64: string;
+}
+
+export interface ListDocumentsResponse {
+  documents: UploadedDocument[];
 }

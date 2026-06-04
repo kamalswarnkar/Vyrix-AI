@@ -14,7 +14,7 @@ export interface RetrievalDiagnostics {
   normalizedQuery: string;
   topKRequested: number;
   topKReturned: number;
-  indexesQueried: Array<"chroma" | "faiss">;
+  indexesQueried: Array<"sqlite-keyword" | "chroma" | "faiss">;
 }
 
 export interface ResearchQuestionRequest {
