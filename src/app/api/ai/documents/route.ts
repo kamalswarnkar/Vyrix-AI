@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAiContainer } from "@/server/ai/container";
+import { toRouteErrorResponse } from "@/server/ai/http/route-error";
 import { uploadDocumentRequestSchema } from "@/server/ai/validators/chat-schemas";
 
 export async function GET(request: Request) {
@@ -34,15 +35,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "DOCUMENT_UPLOAD_FAILED",
-          message:
-            error instanceof Error ? error.message : "Unknown document upload failure",
-        },
-      },
-      { status: 500 },
+    return toRouteErrorResponse(
+      error,
+      "DOCUMENT_UPLOAD_FAILED",
+      "Unknown document upload failure",
     );
   }
 }

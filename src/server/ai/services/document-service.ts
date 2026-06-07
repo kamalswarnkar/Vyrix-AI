@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { nanoid } from "nanoid";
@@ -10,6 +10,7 @@ import type {
   UploadDocumentResponse,
 } from "@/features/ai/contracts/documents";
 import type { DocumentRepository } from "@/server/ai/repositories/document-repository";
+import { AiError } from "@/server/ai/errors/ai-errors";
 
 const TEXT_KINDS = new Set<DocumentKind>(["txt", "md", "html"]);
 const CHUNK_SIZE = 4_000;
@@ -35,7 +36,7 @@ export class DocumentService {
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const kind = inferDocumentKind(input.fileName, input.mimeType);
     const safeName = sanitizeFileName(input.fileName);
-    const projectStorageDir = path.join(this.storageRoot, input.projectId);
+    const projectStorageDir = resolveProjectStorageDir(this.storageRoot, input.projectId);
     const storagePath = path.join(projectStorageDir, `${sha256}-${safeName}`);
     const existingDocument = await this.documentRepository.getDocumentByProjectHash(
       input.projectId,
@@ -98,6 +99,18 @@ export class DocumentService {
       extractedText: extracted.text,
       warning: extracted.warning,
     };
+  }
+
+  async deleteDocument(documentId: string): Promise<void> {
+    const document = await this.documentRepository.deleteDocument(documentId);
+    if (!document) {
+      throw new AiError(`Document ${documentId} was not found.`, {
+        code: "DOCUMENT_NOT_FOUND",
+        statusCode: 404,
+      });
+    }
+
+    await rm(document.storagePath, { force: true });
   }
 }
 
@@ -230,14 +243,14 @@ async function extractImageText(
 function extractPrintablePdfText(bytes: Buffer): string | undefined {
   const raw = bytes.toString("latin1");
   const matches = raw.match(/\(([^()]{8,})\)/g) ?? [];
-  const text = matches
-    .map((match) => match.slice(1, -1).replace(/\\([()\\])/g, "$1"))
-    .join("\n")
-    .replace(/[^\t\n\r -~]+/g, " ")
-    .replace(/[ \t]{2,}/g, " ")
-    .trim();
+    const text = matches
+      .map((match) => match.slice(1, -1).replace(/\\([()\\])/g, "$1"))
+      .join("\n")
+      .replace(/[^\t\n\r -~]+/g, " ")
+      .replace(/[ \t]{2,}/g, " ")
+      .trim();
 
-  return text.length >= 40 ? text : undefined;
+  return text.length >= 40 && isLikelyReadableText(text) ? text : undefined;
 }
 
 function chunkText(text: string): Array<{ content: string; charStart: number; charEnd: number }> {
@@ -267,4 +280,29 @@ function estimateTokens(text: string): number {
 
 function sanitizeFileName(fileName: string): string {
   return fileName.replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "") || "upload";
+}
+
+function isLikelyReadableText(text: string): boolean {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const alphaNumericMatches = normalized.match(/[A-Za-z0-9]/g) ?? [];
+  const wordMatches = normalized.match(/[A-Za-z]{3,}/g) ?? [];
+  const ratio = alphaNumericMatches.length / Math.max(normalized.length, 1);
+
+  return ratio >= 0.45 && wordMatches.length >= 12;
+}
+
+function resolveProjectStorageDir(storageRoot: string, projectId: string): string {
+  const safeProjectSegment =
+    projectId.replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "") || "project";
+  const absoluteRoot = path.resolve(storageRoot);
+  const absoluteProjectDir = path.resolve(absoluteRoot, safeProjectSegment);
+
+  if (
+    absoluteProjectDir !== absoluteRoot &&
+    !absoluteProjectDir.startsWith(`${absoluteRoot}${path.sep}`)
+  ) {
+    throw new Error("Resolved upload directory must stay inside the configured storage root.");
+  }
+
+  return absoluteProjectDir;
 }

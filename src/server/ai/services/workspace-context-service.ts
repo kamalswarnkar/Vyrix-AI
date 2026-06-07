@@ -3,9 +3,10 @@ import path from "node:path";
 
 import type { WorkspaceContextRef } from "@/features/ai/contracts/chat";
 
-const DEFAULT_MAX_FILES = 12;
+const DEFAULT_MAX_FILES = 2;
 const MAX_FILE_BYTES = 120_000;
-const EXCERPT_CHARS = 8_000;
+const EXCERPT_CHARS = 800;
+const MAX_TOTAL_EXCERPT_CHARS = 1_600;
 const IGNORED_DIRS = new Set([
   ".git",
   ".next",
@@ -56,19 +57,27 @@ export class WorkspaceContextService {
         path: file,
         score: scorePath(file, queryTerms),
       }))
+      .filter((item) => queryTerms.length === 0 || item.score > 0)
       .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
       .slice(0, input.maxFiles ?? DEFAULT_MAX_FILES);
 
     const refs: WorkspaceContextRef[] = [];
+    let remainingChars = MAX_TOTAL_EXCERPT_CHARS;
     for (const item of ranked) {
+      if (remainingChars <= 0) {
+        break;
+      }
+
       const content = await readFile(item.path, "utf8");
+      const excerpt = content.slice(0, Math.min(EXCERPT_CHARS, remainingChars));
       refs.push({
         path: path.relative(this.workspaceRoot, item.path),
         kind: "file",
         language: languageFromPath(item.path),
         summary: `Workspace file selected for local context. Size ${content.length} chars.`,
-        excerpt: content.slice(0, EXCERPT_CHARS),
+        excerpt,
       });
+      remainingChars -= excerpt.length;
     }
 
     return refs;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAiContainer } from "@/server/ai/container";
+import { toRouteErrorResponse } from "@/server/ai/http/route-error";
 import { workspaceContextRequestSchema } from "@/server/ai/validators/chat-schemas";
 
 export const dynamic = "force-dynamic";
@@ -15,17 +16,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ workspaceRefs });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "WORKSPACE_CONTEXT_FAILED",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Unknown workspace context failure",
-        },
-      },
-      { status: 500 },
+    return toRouteErrorResponse(
+      error,
+      "WORKSPACE_CONTEXT_FAILED",
+      "Unknown workspace context failure",
     );
   }
 }

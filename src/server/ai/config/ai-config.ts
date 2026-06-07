@@ -16,6 +16,7 @@ const aiConfigSchema = z.object({
   sqlitePath: z.string().min(1).default("./data/vyrix.sqlite"),
   chatHistoryMessageLimit: z.number().int().min(4).default(20),
   requestTimeoutMs: z.number().int().min(5_000).default(120_000),
+  healthCheckTimeoutMs: z.number().int().min(500).default(5_000),
 });
 
 export type AiConfig = z.infer<typeof aiConfigSchema>;
@@ -30,6 +31,9 @@ export function getAiConfig(): AiConfig {
       : undefined,
     requestTimeoutMs: process.env.AI_REQUEST_TIMEOUT_MS
       ? Number(process.env.AI_REQUEST_TIMEOUT_MS)
+      : undefined,
+    healthCheckTimeoutMs: process.env.AI_HEALTH_TIMEOUT_MS
+      ? Number(process.env.AI_HEALTH_TIMEOUT_MS)
       : undefined,
   });
 }

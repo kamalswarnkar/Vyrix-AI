@@ -3,6 +3,10 @@ import type {
   ProviderChatResult,
   StreamedProviderChunk,
 } from "@/features/ai/contracts/chat";
+import {
+  AiModelUnavailableError,
+  AiProviderUnavailableError,
+} from "@/server/ai/errors/ai-errors";
 
 interface OllamaChatRequest {
   model: string;
@@ -17,6 +21,8 @@ interface OllamaChatRequest {
 interface OllamaClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  requestTimeoutMs?: number;
+  healthCheckTimeoutMs?: number;
 }
 
 interface OllamaTagListResponse {
@@ -30,15 +36,19 @@ interface OllamaTagListResponse {
 export class OllamaClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly requestTimeoutMs: number;
+  private readonly healthCheckTimeoutMs: number;
 
   constructor(options: OllamaClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? "http://127.0.0.1:11434";
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 5_000;
+    this.healthCheckTimeoutMs = options.healthCheckTimeoutMs ?? 5_000;
   }
 
   async chat(input: OllamaChatRequest): Promise<ProviderChatResult> {
     const startedAt = Date.now();
-    const response = await this.fetchImpl(`${this.baseUrl}/api/chat`, {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -48,7 +58,7 @@ export class OllamaClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Ollama chat request failed with ${response.status}`);
+      throw await this.toHttpError(response, input.model);
     }
 
     const json = (await response.json()) as {
@@ -76,7 +86,7 @@ export class OllamaClient {
   }
 
   async *streamChat(input: OllamaChatRequest): AsyncGenerator<StreamedProviderChunk> {
-    const response = await this.fetchImpl(`${this.baseUrl}/api/chat`, {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -86,7 +96,11 @@ export class OllamaClient {
     });
 
     if (!response.ok || !response.body) {
-      throw new Error(`Ollama stream request failed with ${response.status}`);
+      throw response.ok
+        ? new AiProviderUnavailableError(
+            `Ollama returned an empty streaming response from ${this.baseUrl}.`,
+          )
+        : await this.toHttpError(response, input.model);
     }
 
     const reader = response.body.getReader();
@@ -139,12 +153,12 @@ export class OllamaClient {
   }
 
   async listModels(): Promise<Array<{ name: string; size?: string; modifiedAt?: string }>> {
-    const response = await this.fetchImpl(`${this.baseUrl}/api/tags`, {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/api/tags`, {
       method: "GET",
-    });
+    }, this.healthCheckTimeoutMs);
 
     if (!response.ok) {
-      throw new Error(`Ollama model list request failed with ${response.status}`);
+      throw await this.toHttpError(response);
     }
 
     const json = (await response.json()) as OllamaTagListResponse;
@@ -155,5 +169,66 @@ export class OllamaClient {
         typeof model.size === "number" ? `${Math.round(model.size / 1024 / 1024)} MB` : undefined,
       modifiedAt: model.modified_at,
     }));
+  }
+
+  private async fetchWithTimeout(
+    input: string,
+    init: RequestInit,
+    timeoutMs = this.requestTimeoutMs,
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await this.fetchImpl(input, {
+        ...init,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new AiProviderUnavailableError(
+          `Ollama did not respond within ${timeoutMs} ms at ${this.baseUrl}.`,
+        );
+      }
+
+      throw new AiProviderUnavailableError(
+        `Vyrix could not reach Ollama at ${this.baseUrl}. Install or start Ollama and try again.`,
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async toHttpError(
+    response: Response,
+    model?: string,
+  ): Promise<AiProviderUnavailableError | AiModelUnavailableError> {
+    const details = await safeReadErrorText(response);
+
+    if (response.status === 404 && model) {
+      return new AiModelUnavailableError(
+        `The model "${model}" is not available in Ollama. Pull it locally and try again.`,
+      );
+    }
+
+    if (response.status === 400 && model && details.toLowerCase().includes("model")) {
+      return new AiModelUnavailableError(
+        `Ollama rejected the model "${model}". Pull it locally and try again.`,
+      );
+    }
+
+    return new AiProviderUnavailableError(
+      details
+        ? `Ollama request failed with ${response.status}: ${details}`
+        : `Ollama request failed with ${response.status} at ${this.baseUrl}.`,
+    );
+  }
+}
+
+async function safeReadErrorText(response: Response): Promise<string> {
+  try {
+    return (await response.text()).trim();
+  } catch {
+    return "";
   }
 }

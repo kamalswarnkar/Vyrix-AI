@@ -41,4 +41,36 @@ describe("RetrievalService", () => {
       "retrieval augmented generation",
     );
   });
+
+  it("falls back to recent chunks when keyword retrieval returns no direct matches", async () => {
+    const chunk: DocumentChunk & { documentName: string; score: number } = {
+      id: "chunk-2",
+      documentId: "doc-2",
+      documentName: "unit-3.pdf",
+      chunkIndex: 0,
+      content: "Introduction to the unit. This chapter explains the main concepts.",
+      tokenCount: 14,
+      charStart: 0,
+      charEnd: 70,
+      contentHash: "hash-2",
+      score: 0.1,
+    };
+    const service = new RetrievalService({
+      documentRepository: {
+        searchChunks: async () => [chunk],
+      } as Partial<DocumentRepository> as DocumentRepository,
+    });
+
+    const hits = await service.retrieve({
+      projectId: "project-1",
+      query: "summarize this pdf",
+    });
+
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({
+      documentId: "doc-2",
+      documentName: "unit-3.pdf",
+      score: 0.1,
+    });
+  });
 });

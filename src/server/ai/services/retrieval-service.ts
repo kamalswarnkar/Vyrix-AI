@@ -64,7 +64,7 @@ export class RetrievalService {
       summary: [
         hit.pageStart ? `Page ${hit.pageStart}` : undefined,
         `Score ${hit.score}`,
-        hit.content,
+        hit.content.slice(0, 900),
       ]
         .filter(Boolean)
         .join("\n"),

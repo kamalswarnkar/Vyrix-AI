@@ -60,7 +60,9 @@ export class AiHealthService {
         message:
           missingModels.length === 0
             ? "AI runtime is reachable and all configured models are installed."
-            : "AI runtime is reachable, but some configured models are not installed yet.",
+            : installedModels.length > 0
+              ? `AI runtime is reachable and ready with ${installedModels.length} installed model(s). Additional configured models are optional.`
+              : "AI runtime is reachable, but no configured chat model is installed yet.",
       };
     } catch {
       return {
@@ -73,7 +75,7 @@ export class AiHealthService {
         defaultChatModel: this.defaultChatModel,
         checkedAt: this.now().toISOString(),
         message:
-          "AI runtime is not reachable yet. This is expected before Ollama is installed and started.",
+          `Vyrix could not reach Ollama at ${this.baseUrl}. Install/start Ollama, then pull a configured model such as ${this.defaultChatModel}.`,
       };
     }
   }

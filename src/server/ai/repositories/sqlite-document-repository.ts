@@ -107,6 +107,23 @@ export class SqliteDocumentRepository implements DocumentRepository {
     return document;
   }
 
+  async deleteDocument(documentId: string): Promise<UploadedDocument | null> {
+    const existing = await this.getDocument(documentId);
+    if (!existing) {
+      return null;
+    }
+
+    const transaction = this.db.transaction((id: string) => {
+      this.db.prepare("DELETE FROM vector_indexes WHERE document_id = ?").run(id);
+      this.db.prepare("DELETE FROM embedding_jobs WHERE document_id = ?").run(id);
+      this.db.prepare("DELETE FROM document_chunks WHERE document_id = ?").run(id);
+      this.db.prepare("DELETE FROM documents WHERE id = ?").run(id);
+    });
+
+    transaction(documentId);
+    return existing;
+  }
+
   async updateDocumentStatus(
     documentId: string,
     status: UploadedDocument["status"],
@@ -232,7 +249,9 @@ export class SqliteDocumentRepository implements DocumentRepository {
       .all(input.projectId, input.documentId ?? null, input.documentId ?? null) as ChunkRow[];
 
     const queryTerms = tokenize(input.query);
-    return rows
+    const usableRows = rows.filter((row) => isUsableChunkContent(row.content));
+
+    const ranked = usableRows
       .map((row) => ({
         ...this.mapChunk(row),
         documentName: row.document_name ?? "Unknown document",
@@ -241,6 +260,18 @@ export class SqliteDocumentRepository implements DocumentRepository {
       .filter((chunk) => chunk.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, input.topK);
+
+    if (ranked.length > 0) {
+      return ranked;
+    }
+
+    return usableRows
+      .slice(0, input.topK)
+      .map((row) => ({
+        ...this.mapChunk(row),
+        documentName: row.document_name ?? "Unknown document",
+        score: 0.1,
+      }));
   }
 
   private mapDocument(row: DocumentRow): UploadedDocument {
@@ -304,4 +335,17 @@ function scoreText(content: string, queryTerms: string[]): number {
 
 function escapeRegExp(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isUsableChunkContent(content: string): boolean {
+  const normalized = content.replace(/\s+/g, " ").trim();
+  if (normalized.length < 80) {
+    return false;
+  }
+
+  const alphaNumericMatches = normalized.match(/[A-Za-z0-9]/g) ?? [];
+  const wordMatches = normalized.match(/[A-Za-z]{3,}/g) ?? [];
+  const ratio = alphaNumericMatches.length / normalized.length;
+
+  return ratio >= 0.45 && wordMatches.length >= 12;
 }

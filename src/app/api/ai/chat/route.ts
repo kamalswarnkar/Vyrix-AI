@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { AiError } from "@/server/ai/errors/ai-errors";
 import { getAiContainer } from "@/server/ai/container";
+import { toRouteErrorResponse } from "@/server/ai/http/route-error";
 import { createChatCompletionRequestSchema } from "@/server/ai/validators/chat-schemas";
 
 export async function POST(request: Request) {
@@ -13,27 +13,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
-    if (error instanceof AiError) {
-      return NextResponse.json(
-        {
-          error: {
-            code: error.code,
-            message: error.message,
-          },
-        },
-        { status: error.statusCode },
-      );
-    }
-
-    return NextResponse.json(
-      {
-        error: {
-          code: "CHAT_REQUEST_FAILED",
-          message:
-            error instanceof Error ? error.message : "Unknown chat request failure",
-        },
-      },
-      { status: 500 },
+    return toRouteErrorResponse(
+      error,
+      "CHAT_REQUEST_FAILED",
+      "Unknown chat request failure",
     );
   }
 }

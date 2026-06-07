@@ -1,0 +1,17 @@
+Unit V
+
+Transformers : transformer architecture, self-attention, multi-head attention, positional encoding,
+transformer encoder and decoder blocks, tokenization methods, Byte-Pair Encoding and WordPiece
+Pretrained Language Models : pretrained transformer models, BERT, GPT, T5, masked language
+
+modeling, next sentence prediction, causal language modeling, transfer learning for NLP tasks, fine-
+tuning for text classification, named entity recognition, question answering, HuggingFace
+
+Transformers
+
+Unit VI
+
+Generative NLP and LLMs : generative NLP models, text generation strategies, greedy search,
+beam search, top-k, nucleus sampling, instruction-tuned, large language models, model behaviors in
+summarization, dialogue generation, reasoning tasks, evaluation metrics, perplexity and human
+judgment measures, explainability and hallucination in LLMs

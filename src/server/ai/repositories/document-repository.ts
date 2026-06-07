@@ -35,6 +35,7 @@ export interface InsertDocumentChunkInput {
 
 export interface DocumentRepository {
   createDocument(input: CreateDocumentRecordInput): Promise<UploadedDocument>;
+  deleteDocument(documentId: string): Promise<UploadedDocument | null>;
   updateDocumentStatus(
     documentId: string,
     status: UploadedDocument["status"],

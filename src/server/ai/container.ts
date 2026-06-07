@@ -27,6 +27,8 @@ export function getAiContainer(): AiContainer {
     const sqlite = getSqliteClient(config.sqlitePath);
     const ollamaClient = new OllamaClient({
       baseUrl: config.ollamaBaseUrl,
+      requestTimeoutMs: config.requestTimeoutMs,
+      healthCheckTimeoutMs: config.healthCheckTimeoutMs,
     });
     const conversationRepository = new SqliteConversationRepository(sqlite);
     const documentRepository = new SqliteDocumentRepository(sqlite);

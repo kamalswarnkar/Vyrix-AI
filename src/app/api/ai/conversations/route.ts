@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { nanoid } from "nanoid";
 
 import { getAiContainer } from "@/server/ai/container";
+import { toRouteErrorResponse } from "@/server/ai/http/route-error";
 import { createConversationRequestSchema } from "@/server/ai/validators/chat-schemas";
 
 export async function GET(request: Request) {
@@ -29,18 +30,26 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const json = await request.json();
-  const input = createConversationRequestSchema.parse(json);
-  const { conversationRepository } = getAiContainer();
-  const title = input.title?.trim() || "New Conversation";
-  const conversation = await conversationRepository.createConversation({
-    id: nanoid(),
-    projectId: input.projectId,
-    workspaceId: input.workspaceId,
-    title,
-    scope: input.scope,
-    model: input.model,
-  });
+  try {
+    const json = await request.json();
+    const input = createConversationRequestSchema.parse(json);
+    const { conversationRepository } = getAiContainer();
+    const title = input.title?.trim() || "New Conversation";
+    const conversation = await conversationRepository.createConversation({
+      id: nanoid(),
+      projectId: input.projectId,
+      workspaceId: input.workspaceId,
+      title,
+      scope: input.scope,
+      model: input.model,
+    });
 
-  return NextResponse.json({ conversation }, { status: 201 });
+    return NextResponse.json({ conversation }, { status: 201 });
+  } catch (error) {
+    return toRouteErrorResponse(
+      error,
+      "CONVERSATION_CREATE_FAILED",
+      "Unknown conversation creation failure",
+    );
+  }
 }
