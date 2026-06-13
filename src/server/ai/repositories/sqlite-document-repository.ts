@@ -140,6 +140,29 @@ export class SqliteDocumentRepository implements DocumentRepository {
       .run(status, parseError ?? null, new Date().toISOString(), documentId);
   }
 
+  async updateDocumentIndexMetadata(input: {
+    documentId: string;
+    status: UploadedDocument["status"];
+    embeddingModel?: string;
+    parseError?: string;
+  }): Promise<void> {
+    this.db
+      .prepare(
+        `
+          UPDATE documents
+          SET status = ?, embedding_model = ?, parse_error = ?, updated_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(
+        input.status,
+        input.embeddingModel ?? null,
+        input.parseError ?? null,
+        new Date().toISOString(),
+        input.documentId,
+      );
+  }
+
   async listDocumentsByProject(projectId: string): Promise<UploadedDocument[]> {
     const rows = this.db
       .prepare(

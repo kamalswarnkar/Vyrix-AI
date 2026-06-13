@@ -15,10 +15,6 @@ export const aiModelIdSchema = z.enum([
   "llama3:8b-instruct",
   "llama3.1:8b-instruct",
   "llama3.2:3b-instruct",
-  "qwen2.5:7b-instruct",
-  "qwen2.5:14b-instruct",
-  "phi3:mini",
-  "phi3:medium",
 ]);
 
 export const aiProviderSchema = z.enum(["ollama"]);

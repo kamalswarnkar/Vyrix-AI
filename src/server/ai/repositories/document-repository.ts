@@ -41,6 +41,12 @@ export interface DocumentRepository {
     status: UploadedDocument["status"],
     parseError?: string,
   ): Promise<void>;
+  updateDocumentIndexMetadata(input: {
+    documentId: string;
+    status: UploadedDocument["status"];
+    embeddingModel?: string;
+    parseError?: string;
+  }): Promise<void>;
   listDocumentsByProject(projectId: string): Promise<UploadedDocument[]>;
   getDocument(documentId: string): Promise<UploadedDocument | null>;
   getDocumentByProjectHash(

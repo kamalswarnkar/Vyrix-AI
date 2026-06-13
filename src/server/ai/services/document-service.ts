@@ -11,6 +11,7 @@ import type {
 } from "@/features/ai/contracts/documents";
 import type { DocumentRepository } from "@/server/ai/repositories/document-repository";
 import { AiError } from "@/server/ai/errors/ai-errors";
+import type { EmbeddingService } from "@/server/ai/services/embedding-service";
 
 const TEXT_KINDS = new Set<DocumentKind>(["txt", "md", "html"]);
 const CHUNK_SIZE = 4_000;
@@ -18,15 +19,18 @@ const CHUNK_OVERLAP = 400;
 
 export interface DocumentServiceDependencies {
   documentRepository: DocumentRepository;
+  embeddingService?: EmbeddingService;
   storageRoot?: string;
 }
 
 export class DocumentService {
   private readonly documentRepository: DocumentRepository;
+  private readonly embeddingService?: EmbeddingService;
   private readonly storageRoot: string;
 
   constructor(dependencies: DocumentServiceDependencies) {
     this.documentRepository = dependencies.documentRepository;
+    this.embeddingService = dependencies.embeddingService;
     this.storageRoot =
       dependencies.storageRoot ?? path.join(process.cwd(), "data", "uploads");
   }
@@ -89,8 +93,44 @@ export class DocumentService {
         )
       : [];
 
+    if (chunks.length > 0 && this.embeddingService) {
+      try {
+        const indexResult = await this.embeddingService.indexChunks({
+          documentId: document.id,
+          chunks,
+        });
+        await this.documentRepository.updateDocumentIndexMetadata({
+          documentId: document.id,
+          status: "indexed",
+          embeddingModel: this.embeddingService.model,
+          parseError: extracted.warning,
+        });
+
+        return {
+          document: (await this.documentRepository.getDocument(document.id)) ?? document,
+          chunksCreated: chunks.length,
+          extractedText: extracted.text,
+          warning: indexResult.indexed
+            ? extracted.warning
+            : "Document text was chunked, but no vectors were indexed.",
+        };
+      } catch (error) {
+        await this.documentRepository.updateDocumentStatus(
+          document.id,
+          "chunking",
+          error instanceof Error
+            ? `Chunked text, but local embedding generation failed: ${error.message}`
+            : "Chunked text, but local embedding generation failed.",
+        );
+      }
+    }
+
     if (chunks.length > 0) {
-      await this.documentRepository.updateDocumentStatus(document.id, "indexed");
+      await this.documentRepository.updateDocumentStatus(
+        document.id,
+        "chunking",
+        extracted.warning,
+      );
     }
 
     return {

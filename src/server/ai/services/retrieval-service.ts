@@ -7,16 +7,24 @@ import type {
   RetrievalHit,
 } from "@/features/ai/contracts/rag";
 import type { DocumentRepository } from "@/server/ai/repositories/document-repository";
+import type { VectorRepository } from "@/server/ai/repositories/vector-repository";
+import type { EmbeddingService } from "@/server/ai/services/embedding-service";
 
 export interface RetrievalServiceDependencies {
   documentRepository: DocumentRepository;
+  vectorRepository?: VectorRepository;
+  embeddingService?: EmbeddingService;
 }
 
 export class RetrievalService {
   private readonly documentRepository: DocumentRepository;
+  private readonly vectorRepository?: VectorRepository;
+  private readonly embeddingService?: EmbeddingService;
 
   constructor(dependencies: RetrievalServiceDependencies) {
     this.documentRepository = dependencies.documentRepository;
+    this.vectorRepository = dependencies.vectorRepository;
+    this.embeddingService = dependencies.embeddingService;
   }
 
   async retrieve(input: {
@@ -25,6 +33,35 @@ export class RetrievalService {
     query: string;
     topK?: number;
   }): Promise<RetrievalHit[]> {
+    if (this.vectorRepository && this.embeddingService) {
+      try {
+        const queryVector = await this.embeddingService.embedText(input.query);
+        const vectorHits = await this.vectorRepository.searchSimilar({
+          projectId: input.projectId,
+          documentId: input.documentId,
+          embeddingModel: this.embeddingService.model,
+          queryVector,
+          topK: input.topK ?? 6,
+          vectorStore: "sqlite-faiss",
+        });
+
+        if (vectorHits.length > 0) {
+          return vectorHits.map((hit) => ({
+            chunkId: hit.id,
+            documentId: hit.documentId,
+            documentName: hit.documentName,
+            score: hit.score,
+            content: hit.content,
+            sectionTitle: hit.sectionTitle,
+            pageStart: hit.pageStart,
+            pageEnd: hit.pageEnd,
+          }));
+        }
+      } catch {
+        // Fall back to keyword retrieval when local embedding infrastructure is unavailable.
+      }
+    }
+
     const chunks = await this.documentRepository.searchChunks({
       projectId: input.projectId,
       documentId: input.documentId,

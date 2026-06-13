@@ -33,6 +33,10 @@ interface OllamaTagListResponse {
   }>;
 }
 
+interface OllamaEmbeddingResponse {
+  embedding?: number[];
+}
+
 export class OllamaClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
@@ -42,7 +46,7 @@ export class OllamaClient {
   constructor(options: OllamaClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? "http://127.0.0.1:11434";
     this.fetchImpl = options.fetchImpl ?? fetch;
-    this.requestTimeoutMs = options.requestTimeoutMs ?? 5_000;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 120_000;
     this.healthCheckTimeoutMs = options.healthCheckTimeoutMs ?? 5_000;
   }
 
@@ -153,9 +157,13 @@ export class OllamaClient {
   }
 
   async listModels(): Promise<Array<{ name: string; size?: string; modifiedAt?: string }>> {
-    const response = await this.fetchWithTimeout(`${this.baseUrl}/api/tags`, {
-      method: "GET",
-    }, this.healthCheckTimeoutMs);
+    const response = await this.fetchWithTimeout(
+      `${this.baseUrl}/api/tags`,
+      {
+        method: "GET",
+      },
+      this.healthCheckTimeoutMs,
+    );
 
     if (!response.ok) {
       throw await this.toHttpError(response);
@@ -170,6 +178,28 @@ export class OllamaClient {
       modifiedAt: model.modified_at,
     }));
   }
+
+  async embed(input: { model: string; prompt: string }): Promise<number[]> {
+    const response = await this.fetchWithTimeout(`${this.baseUrl}/api/embeddings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+
+    if (!response.ok) {
+      throw await this.toHttpError(response, input.model);
+    }
+
+    const json = (await response.json()) as OllamaEmbeddingResponse;
+    if (!Array.isArray(json.embedding) || json.embedding.length === 0) {
+      throw new AiProviderUnavailableError(
+        `Ollama returned an empty embedding for model "${input.model}".`,
+      );
+    }
+
+    return json.embedding;
+  }
+
 
   private async fetchWithTimeout(
     input: string,

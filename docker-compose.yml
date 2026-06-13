@@ -1,0 +1,192 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────
+# Vyrix AI — local Docker stack
+#
+#   Services
+#   ────────
+#   ollama        local LLM + embedding server (CPU or GPU)
+#   ollama-init   one-shot container that pulls required models
+#   chromadb      optional hosted vector DB (for future use)
+#   vyrix         Next.js application
+#
+#   Volumes
+#   ───────
+#   ollama_data   ~/.ollama models cache
+#   chroma_data   ChromaDB persistent index
+#   vyrix_data    SQLite DB + uploaded documents
+#
+#   Quick start
+#   ───────────
+#   docker compose up -d
+#
+#   GPU (NVIDIA) override
+#   ─────────────────────
+#   docker compose --profile gpu up -d
+# ─────────────────────────────────────────────────────────────
+
+volumes:
+  ollama_data:
+  chroma_data:
+  vyrix_data:
+
+networks:
+  vyrix_net:
+    driver: bridge
+
+services:
+  # ── Ollama: local LLM + embedding runtime ──────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: vyrix-ollama
+    restart: unless-stopped
+    networks:
+      - vyrix_net
+    ports:
+      - "${OLLAMA_HOST_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ── Ollama GPU variant (NVIDIA only) ───────────────────────
+  ollama-gpu:
+    profiles: ["gpu"]
+    image: ollama/ollama:latest
+    container_name: vyrix-ollama-gpu
+    restart: unless-stopped
+    networks:
+      - vyrix_net
+    ports:
+      - "${OLLAMA_HOST_PORT:-11434}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Init: pull required models once, then exit ─────────────
+  # Runs after ollama is healthy; pulls the chat model (via
+  # Modelfile for tuned Llama 3 behaviour) and the embedding
+  # model (nomic-embed-text).
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: vyrix-ollama-init
+    restart: "no"
+    networks:
+      - vyrix_net
+    volumes:
+      - ollama_data:/root/.ollama
+      # Mount Modelfile so the init script can create the model
+      - ./ollama/Modelfile:/modelfiles/Modelfile:ro
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - VYRIX_CHAT_MODEL=${DEFAULT_CHAT_MODEL:-vyrix-research}
+      - VYRIX_EMBED_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo "==> Pulling embedding model: $VYRIX_EMBED_MODEL"
+        ollama pull "$VYRIX_EMBED_MODEL"
+
+        echo "==> Creating tuned chat model from Modelfile"
+        ollama create "$VYRIX_CHAT_MODEL" -f /modelfiles/Modelfile
+
+        echo "==> Model init complete"
+        ollama list
+
+  # ── ChromaDB: optional hosted vector store ─────────────────
+  # The app currently uses sqlite-faiss (in-process cosine
+  # similarity). ChromaDB is wired here so you can switch the
+  # VECTOR_STORE env var later without rebuilding.
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: vyrix-chroma
+    restart: unless-stopped
+    networks:
+      - vyrix_net
+    ports:
+      - "${CHROMA_HOST_PORT:-8000}:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ALLOW_RESET=FALSE
+      - ANONYMIZED_TELEMETRY=FALSE
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # ── Vyrix: Next.js application ─────────────────────────────
+  vyrix:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vyrix-app
+    restart: unless-stopped
+    networks:
+      - vyrix_net
+    ports:
+      - "${VYRIX_HOST_PORT:-3000}:3000"
+    volumes:
+      # Persist SQLite database and uploaded documents
+      - vyrix_data:/app/data
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+
+      # ── Ollama ──────────────────────────────────────────
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - DEFAULT_CHAT_MODEL=${DEFAULT_CHAT_MODEL:-vyrix-research}
+      - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+
+      # ── Paths ───────────────────────────────────────────
+      - VYRIX_SQLITE_PATH=/app/data/vyrix.sqlite
+      - VYRIX_UPLOAD_STORAGE_ROOT=/app/data/uploads
+
+      # ── Timeouts & limits ───────────────────────────────
+      - AI_REQUEST_TIMEOUT_MS=${AI_REQUEST_TIMEOUT_MS:-180000}
+      - AI_HEALTH_TIMEOUT_MS=${AI_HEALTH_TIMEOUT_MS:-5000}
+      - AI_CHAT_HISTORY_LIMIT=${AI_CHAT_HISTORY_LIMIT:-20}
+
+      # ── ChromaDB (future) ───────────────────────────────
+      - CHROMA_BASE_URL=http://chromadb:8000
+
+    depends_on:
+      ollama:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:3000/api/ai/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

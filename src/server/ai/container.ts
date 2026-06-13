@@ -4,7 +4,9 @@ import { ChatService } from "@/server/ai/services/chat-service";
 import { AiHealthService } from "@/server/ai/services/ai-health-service";
 import { SqliteConversationRepository } from "@/server/ai/repositories/sqlite-conversation-repository";
 import { SqliteDocumentRepository } from "@/server/ai/repositories/sqlite-document-repository";
+import { SqliteVectorRepository } from "@/server/ai/repositories/sqlite-vector-repository";
 import { DocumentService } from "@/server/ai/services/document-service";
+import { EmbeddingService } from "@/server/ai/services/embedding-service";
 import { RetrievalService } from "@/server/ai/services/retrieval-service";
 import { WorkspaceContextService } from "@/server/ai/services/workspace-context-service";
 import { getSqliteClient } from "@/server/db/sqlite/client";
@@ -14,7 +16,9 @@ export interface AiContainer {
   aiHealthService: AiHealthService;
   conversationRepository: SqliteConversationRepository;
   documentRepository: SqliteDocumentRepository;
+  vectorRepository: SqliteVectorRepository;
   documentService: DocumentService;
+  embeddingService: EmbeddingService;
   retrievalService: RetrievalService;
   workspaceContextService: WorkspaceContextService;
 }
@@ -32,10 +36,20 @@ export function getAiContainer(): AiContainer {
     });
     const conversationRepository = new SqliteConversationRepository(sqlite);
     const documentRepository = new SqliteDocumentRepository(sqlite);
+    const vectorRepository = new SqliteVectorRepository(sqlite);
+    const embeddingService = new EmbeddingService({
+      ollamaClient,
+      vectorRepository,
+      embeddingModel: config.embeddingModel,
+    });
     const retrievalService = new RetrievalService({
       documentRepository,
+      vectorRepository,
+      embeddingService,
     });
-    const workspaceContextService = new WorkspaceContextService();
+    const workspaceContextService = new WorkspaceContextService({
+      workspaceRoot: config.workspaceRoot,
+    });
 
     aiContainer = {
       chatService: new ChatService({
@@ -52,9 +66,13 @@ export function getAiContainer(): AiContainer {
       }),
       conversationRepository,
       documentRepository,
+      vectorRepository,
       documentService: new DocumentService({
         documentRepository,
+        embeddingService,
+        storageRoot: config.uploadStorageRoot,
       }),
+      embeddingService,
       retrievalService,
       workspaceContextService,
     };

@@ -3,10 +3,21 @@ node_modules/
 dist/
 coverage/
 *.log
+
+# ── Secrets (keep .env.example committed) ──────────────────
 .env
 .env.local
+.env.production
+
+# ── Local data (SQLite + uploaded files) ───────────────────
+data/
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# ── Build artefacts ─────────────────────────────────────────
 .omx/
 *.tsbuildinfo

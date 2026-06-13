@@ -7,13 +7,12 @@ const aiConfigSchema = z.object({
       "llama3:8b-instruct",
       "llama3.1:8b-instruct",
       "llama3.2:3b-instruct",
-      "qwen2.5:7b-instruct",
-      "qwen2.5:14b-instruct",
-      "phi3:mini",
-      "phi3:medium",
     ])
     .default("llama3.1:8b-instruct"),
+  embeddingModel: z.string().min(1).default("nomic-embed-text"),
   sqlitePath: z.string().min(1).default("./data/vyrix.sqlite"),
+  workspaceRoot: z.string().min(1).default("./src"),
+  uploadStorageRoot: z.string().min(1).default("./data/uploads"),
   chatHistoryMessageLimit: z.number().int().min(4).default(20),
   requestTimeoutMs: z.number().int().min(5_000).default(120_000),
   healthCheckTimeoutMs: z.number().int().min(500).default(5_000),
@@ -25,7 +24,10 @@ export function getAiConfig(): AiConfig {
   return aiConfigSchema.parse({
     ollamaBaseUrl: process.env.OLLAMA_BASE_URL,
     defaultChatModel: process.env.DEFAULT_CHAT_MODEL,
+    embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL,
     sqlitePath: process.env.VYRIX_SQLITE_PATH,
+    workspaceRoot: process.env.VYRIX_WORKSPACE_ROOT,
+    uploadStorageRoot: process.env.VYRIX_UPLOAD_STORAGE_ROOT,
     chatHistoryMessageLimit: process.env.AI_CHAT_HISTORY_LIMIT
       ? Number(process.env.AI_CHAT_HISTORY_LIMIT)
       : undefined,

@@ -101,13 +101,17 @@ CREATE TABLE IF NOT EXISTS vector_indexes (
   id TEXT PRIMARY KEY,
   document_id TEXT NOT NULL,
   chunk_id TEXT NOT NULL,
-  vector_store TEXT NOT NULL CHECK (vector_store IN ('chroma', 'faiss')),
+  vector_store TEXT NOT NULL CHECK (vector_store IN ('sqlite-faiss', 'chroma', 'faiss')),
   embedding_model TEXT NOT NULL,
   dimensions INTEGER NOT NULL,
+  vector_json TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (document_id) REFERENCES documents (id),
   FOREIGN KEY (chunk_id) REFERENCES document_chunks (id)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vector_indexes_chunk_store_model
+  ON vector_indexes (chunk_id, vector_store, embedding_model);
 
 CREATE INDEX IF NOT EXISTS idx_vector_indexes_document_id
   ON vector_indexes (document_id, vector_store);

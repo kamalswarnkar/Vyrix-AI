@@ -1,0 +1,26 @@
+.git
+.next
+node_modules
+data
+coverage
+*.log
+
+# ── Secrets ─────────────────────────────────────────────────
+.env*
+!.env.example
+
+# ── Dev / IDE artefacts ─────────────────────────────────────
+.omx
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+*.db
+*.sqlite
+
+# ── Test & docs (not needed in image) ───────────────────────
+docs
+**/*.test.ts
+**/*.spec.ts
+vitest.config.ts
+
+# ── Keep ollama/ (contains Modelfile) ───────────────────────
+# (not listed here — it is included by default)
