@@ -16,8 +16,9 @@ tsconfig.tsbuildinfo
 *.db
 *.sqlite
 
-# ── Test & docs (not needed in image) ───────────────────────
+# ── Test, docs, fine-tuning (not needed in image) ───────────
 docs
+fine-tuning
 **/*.test.ts
 **/*.spec.ts
 vitest.config.ts

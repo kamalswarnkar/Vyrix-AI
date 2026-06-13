@@ -1,15 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
-type AiModelId =
-  | "llama3:8b-instruct"
-  | "llama3.1:8b-instruct"
-  | "llama3.2:3b-instruct"
-  | "qwen2.5:7b-instruct"
-  | "qwen2.5:14b-instruct"
-  | "phi3:mini"
-  | "phi3:medium";
+type AiModelId = "llama3.2:3b-instruct";
 
 interface BootstrapData {
   defaultChatModel: AiModelId;
@@ -287,7 +282,7 @@ export function ChatbotDemo() {
       const activeModel =
         bootstrap?.models.find((entry) => entry.id === model) ?? null;
 
-      const response = await fetchWithTimeout("/api/ai/chat/stream", {
+      const response = await fetchStreamStart("/api/ai/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -487,6 +482,32 @@ export function ChatbotDemo() {
     }
   }
 
+  async function handleDeleteConversation(id: string) {
+    try {
+      setBusy(true);
+      setError(null);
+      const response = await fetchWithTimeout(
+        `/api/ai/conversations/${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+      );
+
+      if (!response.ok) {
+        const json = (await response.json().catch(() => null)) as ApiErrorPayload | null;
+        throw new Error(json?.error?.message ?? "Failed to delete conversation.");
+      }
+
+      setConversations((current) => current.filter((c) => c.id !== id));
+      if (conversationId === id) {
+        setConversationId("");
+        setMessages([]);
+      }
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Failed to delete conversation.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRemoveDocument(documentId: string) {
     try {
       setBusy(true);
@@ -574,19 +595,15 @@ export function ChatbotDemo() {
               </div>
 
               <div className="field">
-                <label htmlFor="model">Model</label>
-                <select
-                  id="model"
-                  value={model}
-                  onChange={(event) => setModel(event.target.value as AiModelId)}
-                >
-                  {bootstrap?.models.map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {entry.label} ({entry.resourceProfile}
-                      {entry.installed ? ", installed" : ", not installed"})
-                    </option>
-                  ))}
-                </select>
+                <label>Model</label>
+                <div className="muted">
+                  {bootstrap?.models[0]?.label ?? "Llama 3.2 3B Instruct"}
+                  {bootstrap?.models[0]
+                    ? bootstrap.models[0].installed
+                      ? " — installed"
+                      : " — not installed. Run: ollama pull llama3.2:3b-instruct"
+                    : ""}
+                </div>
               </div>
 
               <div className="toggle-row">
@@ -686,7 +703,19 @@ export function ChatbotDemo() {
                     {message.role}
                     {message.pending ? " - streaming" : ""}
                   </div>
-                  <div className="message-content">{message.content || "..."}</div>
+                  <div className="message-content">
+                    {message.content ? (
+                      message.role === "assistant" ? (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {message.content}
+                        </ReactMarkdown>
+                      ) : (
+                        message.content
+                      )
+                    ) : (
+                      "..."
+                    )}
+                  </div>
                 </article>
               ))
             )}
@@ -727,18 +756,29 @@ export function ChatbotDemo() {
                 </div>
               ) : (
                 conversations.map((conversation) => (
-                  <button
-                    className="support-item"
-                    key={conversation.id}
-                    onClick={() => void handleLoadConversation(conversation.id)}
-                    type="button"
-                  >
-                    <strong>{conversation.title}</strong>
-                    <div className="muted">
-                      {conversation.messageCount} messages - updated{" "}
-                      {new Date(conversation.updatedAt).toLocaleString()}
+                  <div className="support-item" key={conversation.id}>
+                    <button
+                      style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}
+                      onClick={() => void handleLoadConversation(conversation.id)}
+                      type="button"
+                    >
+                      <strong>{conversation.title}</strong>
+                      <div className="muted">
+                        {conversation.messageCount} messages - updated{" "}
+                        {new Date(conversation.updatedAt).toLocaleString()}
+                      </div>
+                    </button>
+                    <div className="action-row" style={{ marginTop: 6 }}>
+                      <button
+                        className="button"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void handleDeleteConversation(conversation.id)}
+                      >
+                        Delete
+                      </button>
                     </div>
-                  </button>
+                  </div>
                 ))
               )}
             </div>
@@ -751,12 +791,12 @@ export function ChatbotDemo() {
 
 async function fileToBase64(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
-  let binary = "";
   const bytes = new Uint8Array(buffer);
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
+  let binary = "";
+  const chunkSize = 8_192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
   }
-
   return btoa(binary);
 }
 
@@ -781,6 +821,30 @@ async function fetchWithTimeout(
     throw error;
   } finally {
     window.clearTimeout(timeout);
+  }
+}
+
+// For streaming: only timeout while waiting for the first response headers.
+// Once headers arrive the timeout is cleared so stream body reading is never aborted.
+async function fetchStreamStart(
+  input: string,
+  init?: RequestInit,
+  headerTimeoutMs = 30_000,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), headerTimeoutMs);
+
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    window.clearTimeout(timeout);
+    return response;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(
+        "The model took too long to start responding. Check that Ollama is running and the model is installed.",
+      );
+    }
+    throw error;
   }
 }
 

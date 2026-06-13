@@ -50,7 +50,12 @@ export class WorkspaceContextService {
     maxFiles?: number;
   }): Promise<WorkspaceContextRef[]> {
     const rootPath = this.resolveInsideWorkspace(input.rootPath ?? this.workspaceRoot);
-    const files = await this.listTextFiles(rootPath);
+    let files: string[];
+    try {
+      files = await this.listTextFiles(rootPath);
+    } catch {
+      return [];
+    }
     const queryTerms = tokenize(input.query ?? "");
     const ranked = files
       .map((file) => ({

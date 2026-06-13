@@ -8,14 +8,11 @@ const supportedUploadMimeTypes = [
   "text/plain",
   "text/markdown",
   "text/html",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/octet-stream",
 ] as const;
 
-export const aiModelIdSchema = z.enum([
-  "llama3:8b-instruct",
-  "llama3.1:8b-instruct",
-  "llama3.2:3b-instruct",
-]);
+export const aiModelIdSchema = z.enum(["llama3.2:3b-instruct"]);
 
 export const aiProviderSchema = z.enum(["ollama"]);
 

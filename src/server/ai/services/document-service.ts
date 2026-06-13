@@ -10,26 +10,30 @@ import type {
   UploadDocumentResponse,
 } from "@/features/ai/contracts/documents";
 import type { DocumentRepository } from "@/server/ai/repositories/document-repository";
+import type { VectorRepository } from "@/server/ai/repositories/vector-repository";
 import { AiError } from "@/server/ai/errors/ai-errors";
 import type { EmbeddingService } from "@/server/ai/services/embedding-service";
 
 const TEXT_KINDS = new Set<DocumentKind>(["txt", "md", "html"]);
 const CHUNK_SIZE = 4_000;
-const CHUNK_OVERLAP = 400;
+const CHUNK_OVERLAP_PARAGRAPHS = 1;
 
 export interface DocumentServiceDependencies {
   documentRepository: DocumentRepository;
+  vectorRepository?: VectorRepository;
   embeddingService?: EmbeddingService;
   storageRoot?: string;
 }
 
 export class DocumentService {
   private readonly documentRepository: DocumentRepository;
+  private readonly vectorRepository?: VectorRepository;
   private readonly embeddingService?: EmbeddingService;
   private readonly storageRoot: string;
 
   constructor(dependencies: DocumentServiceDependencies) {
     this.documentRepository = dependencies.documentRepository;
+    this.vectorRepository = dependencies.vectorRepository;
     this.embeddingService = dependencies.embeddingService;
     this.storageRoot =
       dependencies.storageRoot ?? path.join(process.cwd(), "data", "uploads");
@@ -74,13 +78,13 @@ export class DocumentService {
       sha256,
       status: extracted.text ? "parsed" : "uploaded",
       parserVersion: extracted.parserVersion,
-      chunkerVersion: extracted.text ? "local-char-chunker-v1" : undefined,
+      chunkerVersion: extracted.text ? "local-para-chunker-v1" : undefined,
       parseError: extracted.warning,
     });
 
     const chunks = extracted.text
       ? await this.documentRepository.insertChunks(
-          chunkText(extracted.text).map((chunk, index) => ({
+          chunkText(extracted.text, extracted.numPages).map((chunk, index) => ({
             id: nanoid(),
             documentId: document.id,
             chunkIndex: index,
@@ -88,6 +92,8 @@ export class DocumentService {
             tokenCount: estimateTokens(chunk.content),
             charStart: chunk.charStart,
             charEnd: chunk.charEnd,
+            pageStart: chunk.pageStart,
+            pageEnd: chunk.pageEnd,
             contentHash: createHash("sha256").update(chunk.content).digest("hex"),
           })),
         )
@@ -96,6 +102,7 @@ export class DocumentService {
     if (chunks.length > 0 && this.embeddingService) {
       try {
         const indexResult = await this.embeddingService.indexChunks({
+          projectId: input.projectId,
           documentId: document.id,
           chunks,
         });
@@ -151,6 +158,14 @@ export class DocumentService {
     }
 
     await rm(document.storagePath, { force: true });
+
+    // Rebuild FAISS index for the project, excluding the deleted document's vectors.
+    if (this.vectorRepository && this.embeddingService) {
+      await this.vectorRepository.rebuildProjectIndex(
+        document.projectId,
+        this.embeddingService.model,
+      );
+    }
   }
 }
 
@@ -192,7 +207,7 @@ function inferDocumentKind(fileName: string, mimeType: string): DocumentKind {
 async function extractDocumentText(
   bytes: Buffer,
   kind: DocumentKind,
-): Promise<{ text?: string; parserVersion?: string; warning?: string }> {
+): Promise<{ text?: string; numPages?: number; parserVersion?: string; warning?: string }> {
   if (TEXT_KINDS.has(kind)) {
     return {
       text: bytes.toString("utf8"),
@@ -206,10 +221,12 @@ async function extractDocumentText(
     return text
       ? {
           text,
+          numPages: parsed.numPages,
           parserVersion: parsed.parserVersion,
           warning: parsed.warning,
         }
       : {
+          numPages: parsed.numPages,
           parserVersion: parsed.parserVersion,
           warning:
             parsed.warning ??
@@ -221,6 +238,10 @@ async function extractDocumentText(
     return extractImageText(bytes);
   }
 
+  if (kind === "docx") {
+    return extractDocxText(bytes);
+  }
+
   return {
     warning: "Document stored, but this file type does not have a parser yet.",
   };
@@ -228,16 +249,21 @@ async function extractDocumentText(
 
 async function extractPdfText(
   bytes: Buffer,
-): Promise<{ text?: string; parserVersion: string; warning?: string }> {
+): Promise<{ text?: string; numPages?: number; parserVersion: string; warning?: string }> {
   try {
     const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: bytes });
     try {
       const result = await parser.getText();
       const text = result.text?.trim();
+      const resultAny = result as unknown as Record<string, unknown>;
+      const numPages: number | undefined =
+        (resultAny.numPages as number | undefined) ??
+        (resultAny.numpages as number | undefined);
 
       return {
         text: text && text.length >= 20 ? text : undefined,
+        numPages,
         parserVersion: "pdf-parse-v1",
       };
     } finally {
@@ -250,6 +276,34 @@ async function extractPdfText(
         error instanceof Error
           ? `PDF parser failed, used fallback extraction when possible: ${error.message}`
           : "PDF parser failed, used fallback extraction when possible.",
+    };
+  }
+}
+
+async function extractDocxText(
+  bytes: Buffer,
+): Promise<{ text?: string; parserVersion: string; warning?: string }> {
+  try {
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ buffer: bytes });
+    const text = result.value.trim();
+    const warnings = result.messages
+      .filter((m) => m.type === "warning")
+      .map((m) => m.message)
+      .join("; ");
+
+    return {
+      text: text.length >= 20 ? text : undefined,
+      parserVersion: "mammoth-docx-v1",
+      warning: warnings || undefined,
+    };
+  } catch (error) {
+    return {
+      parserVersion: "mammoth-docx-v1",
+      warning:
+        error instanceof Error
+          ? `DOCX parser failed: ${error.message}`
+          : "DOCX parser failed.",
     };
   }
 }
@@ -293,22 +347,68 @@ function extractPrintablePdfText(bytes: Buffer): string | undefined {
   return text.length >= 40 && isLikelyReadableText(text) ? text : undefined;
 }
 
-function chunkText(text: string): Array<{ content: string; charStart: number; charEnd: number }> {
-  const chunks: Array<{ content: string; charStart: number; charEnd: number }> = [];
+function chunkText(
+  text: string,
+  numPages?: number,
+): Array<{ content: string; charStart: number; charEnd: number; pageStart?: number; pageEnd?: number }> {
+  const totalChars = text.length;
+
+  const estimatePage = numPages
+    ? (pos: number) => Math.max(1, Math.ceil((pos / totalChars) * numPages))
+    : undefined;
+
+  const paragraphs = text.split(/\n{2,}/);
+  const chunks: Array<{ content: string; charStart: number; charEnd: number; pageStart?: number; pageEnd?: number }> = [];
+
+  let currentParagraphs: string[] = [];
+  let currentLength = 0;
+  let chunkCharStart = 0;
   let cursor = 0;
 
-  while (cursor < text.length) {
-    const end = Math.min(cursor + CHUNK_SIZE, text.length);
-    const content = text.slice(cursor, end).trim();
-    if (content) {
-      chunks.push({ content, charStart: cursor, charEnd: end });
+  for (const paragraph of paragraphs) {
+    const paraStart = text.indexOf(paragraph, cursor);
+    cursor = paraStart + paragraph.length;
+    const paraContent = paragraph.trim();
+    if (!paraContent) {
+      continue;
     }
 
-    if (end === text.length) {
-      break;
-    }
+    const wouldExceed = currentLength + paraContent.length > CHUNK_SIZE;
+    const canFlush = currentParagraphs.length > 0;
 
-    cursor = Math.max(end - CHUNK_OVERLAP, cursor + 1);
+    if (wouldExceed && canFlush) {
+      const content = currentParagraphs.join("\n\n");
+      const charEnd = paraStart;
+      chunks.push({
+        content,
+        charStart: chunkCharStart,
+        charEnd,
+        pageStart: estimatePage ? estimatePage(chunkCharStart) : undefined,
+        pageEnd: estimatePage ? estimatePage(charEnd) : undefined,
+      });
+
+      const overlap = currentParagraphs.slice(-CHUNK_OVERLAP_PARAGRAPHS);
+      currentParagraphs = [...overlap, paraContent];
+      currentLength = currentParagraphs.reduce((sum, p) => sum + p.length, 0);
+      chunkCharStart = paraStart;
+    } else {
+      if (currentParagraphs.length === 0) {
+        chunkCharStart = paraStart;
+      }
+      currentParagraphs.push(paraContent);
+      currentLength += paraContent.length;
+    }
+  }
+
+  if (currentParagraphs.length > 0) {
+    const content = currentParagraphs.join("\n\n");
+    chunks.push({
+      content,
+      charStart: chunkCharStart,
+      charEnd: totalChars,
+      pageStart: estimatePage ? estimatePage(chunkCharStart) : undefined,
+      pageEnd: estimatePage ? estimatePage(totalChars) : undefined,
+    });
   }
 
   return chunks;

@@ -1,9 +1,10 @@
 import type { DocumentChunk } from "@/features/ai/contracts/documents";
 
-export type VectorStoreKind = "sqlite-faiss" | "chroma" | "faiss";
+export type VectorStoreKind = "faiss" | "sqlite-faiss" | "chroma";
 
 export interface InsertVectorRecordInput {
   id: string;
+  projectId: string;
   documentId: string;
   chunkId: string;
   vectorStore: VectorStoreKind;
@@ -30,4 +31,5 @@ export interface VectorSearchHit extends DocumentChunk {
 export interface VectorRepository {
   insertVectors(vectors: InsertVectorRecordInput[]): Promise<void>;
   searchSimilar(input: VectorSearchInput): Promise<VectorSearchHit[]>;
+  rebuildProjectIndex(projectId: string, embeddingModel: string): Promise<void>;
 }

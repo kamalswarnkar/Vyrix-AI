@@ -30,6 +30,7 @@ export interface ConversationRepository {
   createConversation(input: CreateConversationRecordInput): Promise<ConversationSummary>;
   listConversationsByProject(projectId: string): Promise<ConversationSummary[]>;
   getConversation(conversationId: string): Promise<ConversationSummary | null>;
+  deleteConversation(conversationId: string): Promise<ConversationSummary | null>;
   listMessages(conversationId: string): Promise<ConversationMessage[]>;
   insertMessage(input: InsertMessageInput): Promise<ConversationMessage>;
   touchConversation(conversationId: string, updatedAt: string): Promise<void>;

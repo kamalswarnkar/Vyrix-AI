@@ -184,6 +184,20 @@ export class SqliteConversationRepository implements ConversationRepository {
     return this.mapMessage(row);
   }
 
+  async deleteConversation(conversationId: string): Promise<ConversationSummary | null> {
+    const existing = await this.getConversation(conversationId);
+    if (!existing) {
+      return null;
+    }
+
+    this.db.transaction((id: string) => {
+      this.db.prepare("DELETE FROM messages WHERE conversation_id = ?").run(id);
+      this.db.prepare("DELETE FROM conversations WHERE id = ?").run(id);
+    })(conversationId);
+
+    return existing;
+  }
+
   async touchConversation(conversationId: string, updatedAt: string): Promise<void> {
     this.db
       .prepare(

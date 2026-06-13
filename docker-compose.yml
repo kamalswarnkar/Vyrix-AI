@@ -7,14 +7,12 @@ version: "3.9"
 #   ────────
 #   ollama        local LLM + embedding server (CPU or GPU)
 #   ollama-init   one-shot container that pulls required models
-#   chromadb      optional hosted vector DB (for future use)
 #   vyrix         Next.js application
 #
 #   Volumes
 #   ───────
-#   ollama_data   ~/.ollama models cache
-#   chroma_data   ChromaDB persistent index
-#   vyrix_data    SQLite DB + uploaded documents
+#   ollama_data   Ollama model cache
+#   vyrix_data    SQLite DB + uploads + FAISS indexes
 #
 #   Quick start
 #   ───────────
@@ -27,7 +25,6 @@ version: "3.9"
 
 volumes:
   ollama_data:
-  chroma_data:
   vyrix_data:
 
 networks:
@@ -86,9 +83,6 @@ services:
       start_period: 30s
 
   # ── Init: pull required models once, then exit ─────────────
-  # Runs after ollama is healthy; pulls the chat model (via
-  # Modelfile for tuned Llama 3 behaviour) and the embedding
-  # model (nomic-embed-text).
   ollama-init:
     image: ollama/ollama:latest
     container_name: vyrix-ollama-init
@@ -97,12 +91,8 @@ services:
       - vyrix_net
     volumes:
       - ollama_data:/root/.ollama
-      # Mount Modelfile so the init script can create the model
-      - ./ollama/Modelfile:/modelfiles/Modelfile:ro
     environment:
       - OLLAMA_HOST=http://ollama:11434
-      - VYRIX_CHAT_MODEL=${DEFAULT_CHAT_MODEL:-vyrix-research}
-      - VYRIX_EMBED_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
     depends_on:
       ollama:
         condition: service_healthy
@@ -110,39 +100,12 @@ services:
     command:
       - |
         set -e
-        echo "==> Pulling embedding model: $VYRIX_EMBED_MODEL"
-        ollama pull "$VYRIX_EMBED_MODEL"
-
-        echo "==> Creating tuned chat model from Modelfile"
-        ollama create "$VYRIX_CHAT_MODEL" -f /modelfiles/Modelfile
-
-        echo "==> Model init complete"
+        echo "==> Pulling chat model: llama3.2:3b-instruct"
+        ollama pull llama3.2:3b-instruct
+        echo "==> Pulling embedding model: nomic-embed-text"
+        ollama pull nomic-embed-text
+        echo "==> Done"
         ollama list
-
-  # ── ChromaDB: optional hosted vector store ─────────────────
-  # The app currently uses sqlite-faiss (in-process cosine
-  # similarity). ChromaDB is wired here so you can switch the
-  # VECTOR_STORE env var later without rebuilding.
-  chromadb:
-    image: chromadb/chroma:latest
-    container_name: vyrix-chroma
-    restart: unless-stopped
-    networks:
-      - vyrix_net
-    ports:
-      - "${CHROMA_HOST_PORT:-8000}:8000"
-    volumes:
-      - chroma_data:/chroma/chroma
-    environment:
-      - IS_PERSISTENT=TRUE
-      - ALLOW_RESET=FALSE
-      - ANONYMIZED_TELEMETRY=FALSE
-    healthcheck:
-      test: ["CMD", "curl", "-fs", "http://localhost:8000/api/v1/heartbeat"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 10s
 
   # ── Vyrix: Next.js application ─────────────────────────────
   vyrix:
@@ -156,33 +119,29 @@ services:
     ports:
       - "${VYRIX_HOST_PORT:-3000}:3000"
     volumes:
-      # Persist SQLite database and uploaded documents
       - vyrix_data:/app/data
     environment:
       - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
 
-      # ── Ollama ──────────────────────────────────────────
+      # Ollama
       - OLLAMA_BASE_URL=http://ollama:11434
-      - DEFAULT_CHAT_MODEL=${DEFAULT_CHAT_MODEL:-vyrix-research}
-      - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      - DEFAULT_CHAT_MODEL=llama3.2:3b-instruct
+      - OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 
-      # ── Paths ───────────────────────────────────────────
+      # Paths (all under the vyrix_data volume)
       - VYRIX_SQLITE_PATH=/app/data/vyrix.sqlite
       - VYRIX_UPLOAD_STORAGE_ROOT=/app/data/uploads
+      - VYRIX_FAISS_INDEX_DIR=/app/data/faiss
+      - VYRIX_WORKSPACE_ROOT=/app/data/workspace
 
-      # ── Timeouts & limits ───────────────────────────────
+      # Tuning
       - AI_REQUEST_TIMEOUT_MS=${AI_REQUEST_TIMEOUT_MS:-180000}
       - AI_HEALTH_TIMEOUT_MS=${AI_HEALTH_TIMEOUT_MS:-5000}
       - AI_CHAT_HISTORY_LIMIT=${AI_CHAT_HISTORY_LIMIT:-20}
 
-      # ── ChromaDB (future) ───────────────────────────────
-      - CHROMA_BASE_URL=http://chromadb:8000
-
     depends_on:
       ollama:
-        condition: service_healthy
-      chromadb:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:3000/api/ai/health"]

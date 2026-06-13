@@ -1,9 +1,6 @@
 export type AiProvider = "ollama";
 
-export type AiModelId =
-  | "llama3:8b-instruct"
-  | "llama3.1:8b-instruct"
-  | "llama3.2:3b-instruct";
+export type AiModelId = "llama3.2:3b-instruct";
 
 export type ConversationScope = "project" | "workspace";
 

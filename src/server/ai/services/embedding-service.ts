@@ -2,7 +2,7 @@ import { nanoid } from "nanoid";
 
 import type { DocumentChunk } from "@/features/ai/contracts/documents";
 import { OllamaClient } from "@/server/ai/adapters/ollama-client";
-import type { VectorRepository } from "@/server/ai/repositories/vector-repository";
+import type { InsertVectorRecordInput, VectorRepository } from "@/server/ai/repositories/vector-repository";
 
 export interface EmbeddingServiceDependencies {
   ollamaClient: OllamaClient;
@@ -33,22 +33,30 @@ export class EmbeddingService {
   }
 
   async indexChunks(input: {
+    projectId: string;
     documentId: string;
     chunks: DocumentChunk[];
   }): Promise<{ indexed: number; dimensions?: number }> {
-    const vectorRecords = [];
+    const CONCURRENCY = 4;
+    const vectorRecords: InsertVectorRecordInput[] = [];
 
-    for (const chunk of input.chunks) {
-      const vector = await this.embedText(chunk.content);
-      vectorRecords.push({
-        id: nanoid(),
-        documentId: input.documentId,
-        chunkId: chunk.id,
-        vectorStore: "sqlite-faiss" as const,
-        embeddingModel: this.embeddingModel,
-        dimensions: vector.length,
-        vector,
-      });
+    for (let i = 0; i < input.chunks.length; i += CONCURRENCY) {
+      const batch = input.chunks.slice(i, i + CONCURRENCY);
+      const vectors = await Promise.all(
+        batch.map((chunk) => this.embedText(chunk.content)),
+      );
+      for (let j = 0; j < batch.length; j++) {
+        vectorRecords.push({
+          id: nanoid(),
+          projectId: input.projectId,
+          documentId: input.documentId,
+          chunkId: batch[j].id,
+          vectorStore: "faiss",
+          embeddingModel: this.embeddingModel,
+          dimensions: vectors[j].length,
+          vector: vectors[j],
+        });
+      }
     }
 
     await this.vectorRepository.insertVectors(vectorRecords);

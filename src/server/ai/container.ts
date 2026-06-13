@@ -7,6 +7,7 @@ import { SqliteDocumentRepository } from "@/server/ai/repositories/sqlite-docume
 import { SqliteVectorRepository } from "@/server/ai/repositories/sqlite-vector-repository";
 import { DocumentService } from "@/server/ai/services/document-service";
 import { EmbeddingService } from "@/server/ai/services/embedding-service";
+import { FaissIndexService } from "@/server/ai/services/faiss-index-service";
 import { RetrievalService } from "@/server/ai/services/retrieval-service";
 import { WorkspaceContextService } from "@/server/ai/services/workspace-context-service";
 import { getSqliteClient } from "@/server/db/sqlite/client";
@@ -17,6 +18,7 @@ export interface AiContainer {
   conversationRepository: SqliteConversationRepository;
   documentRepository: SqliteDocumentRepository;
   vectorRepository: SqliteVectorRepository;
+  faissIndexService: FaissIndexService;
   documentService: DocumentService;
   embeddingService: EmbeddingService;
   retrievalService: RetrievalService;
@@ -36,7 +38,8 @@ export function getAiContainer(): AiContainer {
     });
     const conversationRepository = new SqliteConversationRepository(sqlite);
     const documentRepository = new SqliteDocumentRepository(sqlite);
-    const vectorRepository = new SqliteVectorRepository(sqlite);
+    const faissIndexService = new FaissIndexService(config.faissIndexDir);
+    const vectorRepository = new SqliteVectorRepository(sqlite, faissIndexService);
     const embeddingService = new EmbeddingService({
       ollamaClient,
       vectorRepository,
@@ -67,8 +70,10 @@ export function getAiContainer(): AiContainer {
       conversationRepository,
       documentRepository,
       vectorRepository,
+      faissIndexService,
       documentService: new DocumentService({
         documentRepository,
+        vectorRepository,
         embeddingService,
         storageRoot: config.uploadStorageRoot,
       }),
