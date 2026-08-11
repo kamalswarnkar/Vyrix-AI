@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "context-resolve",
+  "title": "ContextResolveResult",
+  "description": "Resolution of an @-mention to a project context reference",
+  "type": "object",
+  "required": ["has_context", "project_id"],
+  "additionalProperties": false,
+  "properties": {
+    "has_context": {
+      "type": "boolean",
+      "description": "Whether a valid project was found for the @-mention"
+    },
+    "project_id": {
+      "type": "string",
+      "description": "The resolved project UUID (empty string if not found)"
+    },
+    "project_title": {
+      "type": "string",
+      "description": "Human-readable project title"
+    },
+    "relevant_flow_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Flow IDs whose keywords are most relevant to the current message"
+    },
+    "context_summary": {
+      "type": "string",
+      "description": "Brief summary of why this project was matched"
+    }
+  }
+}

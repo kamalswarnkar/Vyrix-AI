@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "keyword-extraction",
+  "title": "KeywordExtraction",
+  "description": "Keywords and decisions extracted from a conversation turn",
+  "type": "object",
+  "required": ["keywords", "decisions"],
+  "additionalProperties": false,
+  "properties": {
+    "keywords": {
+      "type": "array",
+      "description": "Domain-specific terms worth remembering for this project flow",
+      "items": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 60
+      },
+      "maxItems": 20
+    },
+    "decisions": {
+      "type": "array",
+      "description": "High-level project decisions suitable for global memory",
+      "items": {
+        "type": "object",
+        "required": ["key", "value"],
+        "additionalProperties": false,
+        "properties": {
+          "key": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "value": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "category": {
+            "type": "string",
+            "enum": ["technical", "design", "user", "timeline", "decision", "general"]
+          }
+        }
+      },
+      "maxItems": 5
+    },
+    "has_significant_decision": {
+      "type": "boolean",
+      "description": "True if any decision warrants surfacing a 'Save to memory?' prompt"
+    }
+  }
+}

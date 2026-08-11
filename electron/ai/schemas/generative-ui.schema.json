@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "generative-ui",
+  "title": "GenerativeUIPayload",
+  "description": "Structured data for rendering a Generative UI component in the renderer",
+  "type": "object",
+  "required": ["component_type", "title", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "component_type": {
+      "type": "string",
+      "enum": ["color_palette", "checklist", "roadmap_card", "insight_card", "keyword_cloud", "comparison_table"],
+      "description": "Which UI component to render"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "data": {
+      "type": "object",
+      "description": "Component-specific structured data (free-form, validated per component_type)"
+    },
+    "action_label": {
+      "type": "string",
+      "description": "Optional CTA button label"
+    },
+    "action_type": {
+      "type": "string",
+      "enum": ["save_to_memory", "add_to_flow", "open_mission", "dismiss"],
+      "description": "What the CTA does"
+    }
+  }
+}

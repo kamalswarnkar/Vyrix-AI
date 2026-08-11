@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mission-classification",
+  "title": "MissionClassification",
+  "description": "AI classification of a user mission as subject/module or project",
+  "type": "object",
+  "required": ["mission_type", "confidence", "reasoning", "understood_problem"],
+  "additionalProperties": false,
+  "properties": {
+    "mission_type": {
+      "type": "string",
+      "enum": ["subject", "project"],
+      "description": "Whether this mission is a subject/module (predefined outcomes) or a project (problem to solve)"
+    },
+    "confidence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Confidence in the classification (0-100)"
+    },
+    "reasoning": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Why this mission was classified as subject or project"
+    },
+    "understood_problem": {
+      "type": "string",
+      "minLength": 5,
+      "description": "AI's concise restatement of the user's problem or goal"
+    },
+    "detected_goals": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 10,
+      "description": "Goals or learning outcomes detected in the user's message"
+    },
+    "detected_outcomes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 10,
+      "description": "Expected deliverables or outcomes detected"
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 10,
+      "description": "Constraints mentioned (time, budget, technology, resources)"
+    },
+    "resources": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 10,
+      "description": "Available resources mentioned by the user"
+    }
+  }
+}

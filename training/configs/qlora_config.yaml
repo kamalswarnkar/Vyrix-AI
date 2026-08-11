@@ -1,0 +1,64 @@
+# QLoRA fine-tuning configuration for Vyrix Beta-2
+# Targets Qwen2.5-VL 7B on Vyrix-specific task types
+
+# ── Model ──────────────────────────────────────────────────────────────────────
+model:
+  name_or_path: "Qwen/Qwen2.5-VL-7B-Instruct"
+  trust_remote_code: true
+  torch_dtype: "bfloat16"
+
+# ── LoRA (QLoRA) ──────────────────────────────────────────────────────────────
+lora:
+  r: 16                      # rank — increase for harder tasks
+  lora_alpha: 32             # scaling factor
+  lora_dropout: 0.1
+  bias: "none"
+  task_type: "CAUSAL_LM"
+  # Target modules for Qwen2.5
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+
+# ── Quantization (4-bit QLoRA) ────────────────────────────────────────────────
+quantization:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_compute_dtype: "bfloat16"
+  bnb_4bit_use_double_quant: true
+
+# ── Training ───────────────────────────────────────────────────────────────────
+training:
+  output_dir: "outputs/qlora_adapter"
+  num_train_epochs: 3
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 4    # effective batch size = 8
+  learning_rate: 2.0e-4
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.05
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  fp16: false
+  bf16: true
+  logging_steps: 10
+  save_steps: 100
+  save_total_limit: 3
+  eval_strategy: "steps"
+  eval_steps: 100
+  dataloader_num_workers: 2
+  seed: 42
+
+# ── Data ───────────────────────────────────────────────────────────────────────
+data:
+  train_file: "training/data/train.jsonl"
+  max_seq_length: 2048
+  val_split_ratio: 0.1
+
+# ── Notes ──────────────────────────────────────────────────────────────────────
+# ponytail: these are starting hyperparameters based on Qwen2.5-VL 7B community recipes.
+# Tune learning_rate (try 1e-4 to 5e-4) and r (8, 16, 32) based on loss curves.
+# Expected GPU VRAM: ~22GB for batch_size=2 + gradient_accumulation=4.

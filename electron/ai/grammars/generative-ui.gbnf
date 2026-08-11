@@ -1,0 +1,38 @@
+# GBNF grammar for generative-ui.schema.json
+# Structured UI component payload
+
+root ::= "{" ws
+  "\"component_type\"" ws ":" ws component-type ws "," ws
+  "\"title\"" ws ":" ws string ws "," ws
+  "\"data\"" ws ":" ws object
+  (ws "," ws "\"action_label\"" ws ":" ws string)?
+  (ws "," ws "\"action_type\"" ws ":" ws action-type)?
+ws "}"
+
+component-type ::=
+  "\"color_palette\""
+  | "\"checklist\""
+  | "\"roadmap_card\""
+  | "\"insight_card\""
+  | "\"keyword_cloud\""
+  | "\"comparison_table\""
+
+action-type ::=
+  "\"save_to_memory\""
+  | "\"add_to_flow\""
+  | "\"open_mission\""
+  | "\"dismiss\""
+
+object ::= "{" ws (object-pair (ws "," ws object-pair)*)? ws "}"
+object-pair ::= string ws ":" ws value
+value ::= string | number | boolean | "null" | object | array
+array ::= "[" ws (value (ws "," ws value)*)? ws "]"
+
+boolean ::= "true" | "false"
+number ::= "-"? ([0-9] | [1-9] [0-9]*) ("." [0-9]+)? ([eE] [-+]? [0-9]+)?
+string ::= "\"" string-char* "\""
+string-char ::=
+  [^"\\"\x7F\x00-\x1F]
+  | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F])
+
+ws ::= ([ \t\n\r] ws)?

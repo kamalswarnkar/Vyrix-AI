@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "interview-step",
+  "title": "InterviewStepResponse",
+  "description": "AI response for a single adaptive interview step",
+  "type": "object",
+  "required": ["step_number", "ai_message", "skip_next_step", "extracted"],
+  "additionalProperties": false,
+  "properties": {
+    "step_number": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 6,
+      "description": "The step number this response corresponds to"
+    },
+    "ai_message": {
+      "type": "string",
+      "minLength": 10,
+      "description": "The message to display to the user"
+    },
+    "skip_next_step": {
+      "type": "boolean",
+      "description": "Whether the NEXT step should be skipped based on info already provided"
+    },
+    "requires_clarification": {
+      "type": "boolean",
+      "description": "Whether the AI needs more information before proceeding"
+    },
+    "extracted": {
+      "type": "object",
+      "description": "Structured data extracted from the user response",
+      "properties": {
+        "project_description": { "type": "string" },
+        "goals": { "type": "string" },
+        "understanding_level": {
+          "type": "string",
+          "enum": ["beginner", "intermediate", "advanced"]
+        },
+        "output_type": {
+          "type": "string",
+          "enum": ["prototype", "3d_model", "ideation", "software", "mixed"]
+        },
+        "domain_keywords": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

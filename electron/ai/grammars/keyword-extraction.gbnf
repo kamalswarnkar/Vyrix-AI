@@ -1,0 +1,27 @@
+# GBNF grammar for keyword-extraction.schema.json
+# Extracts keywords and decisions from a conversation turn
+
+root ::= "{" ws
+  "\"keywords\"" ws ":" ws string-array ws "," ws
+  "\"decisions\"" ws ":" ws decisions-array ws "," ws
+  "\"has_significant_decision\"" ws ":" ws boolean
+ws "}"
+
+string-array ::= "[" ws (string (ws "," ws string)*)? ws "]"
+
+decisions-array ::= "[" ws (decision-obj (ws "," ws decision-obj)*)? ws "]"
+decision-obj ::= "{" ws
+  "\"key\"" ws ":" ws string ws "," ws
+  "\"value\"" ws ":" ws string
+  (ws "," ws "\"category\"" ws ":" ws category)?
+ws "}"
+
+category ::= "\"technical\"" | "\"design\"" | "\"user\"" | "\"timeline\"" | "\"decision\"" | "\"general\""
+
+boolean ::= "true" | "false"
+string ::= "\"" string-char* "\""
+string-char ::=
+  [^"\\"\x7F\x00-\x1F]
+  | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F])
+
+ws ::= ([ \t\n\r] ws)?

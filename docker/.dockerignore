@@ -1,0 +1,52 @@
+# Node — installed during build, never sent as context
+node_modules
+electron/ai/node_modules
+**/node_modules
+
+# Python — generated at runtime, not needed in build context
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+training/data/train.jsonl
+training/data/examples/
+.venv
+venv/
+
+# Build output
+.next
+out
+dist
+
+# Calibration results (written by containers, not needed in build)
+docker/calibration-results
+electron/ai/calibration/results
+
+# Model files — too large for build context; mounted at runtime
+*.gguf
+*.bin
+*.safetensors
+training/outputs/
+
+# Version control
+.git
+.gitignore
+
+# Editor / OS
+.DS_Store
+*.swp
+.vscode
+.idea
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env files
+.env*
+!.env.example
+
+# Test coverage
+coverage
+electron/ai/coverage

@@ -1,0 +1,24 @@
+# GBNF grammar for mission-classification.schema.json
+# Classifies a user mission as "subject" or "project"
+
+root ::= "{" ws
+  "\"mission_type\"" ws ":" ws mission-type ws "," ws
+  "\"confidence\"" ws ":" ws number ws "," ws
+  "\"reasoning\"" ws ":" ws string ws "," ws
+  "\"understood_problem\"" ws ":" ws string
+  (ws "," ws "\"detected_goals\"" ws ":" ws string-array)?
+  (ws "," ws "\"detected_outcomes\"" ws ":" ws string-array)?
+  (ws "," ws "\"constraints\"" ws ":" ws string-array)?
+  (ws "," ws "\"resources\"" ws ":" ws string-array)?
+ws "}"
+
+mission-type ::= "\"subject\"" | "\"project\""
+string-array ::= "[" ws (string (ws "," ws string)*)? ws "]"
+number ::= [0-9] [0-9]? [0-9]?
+
+string ::= "\"" string-char* "\""
+string-char ::=
+  [^"\\"\x7F\x00-\x1F]
+  | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F])
+
+ws ::= ([ \t\n\r] ws)?

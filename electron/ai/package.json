@@ -1,0 +1,42 @@
+{
+  "name": "@vyrix/ai",
+  "version": "0.1.0",
+  "description": "Vyrix Beta-2 AI Infrastructure — llama.cpp sidecar, memory, planning, and interview subsystem",
+  "private": true,
+  "main": "ipc/index.js",
+  "types": "ipc/index.d.ts",
+  "scripts": {
+    "test": "jest --config jest.config.ts",
+    "test:unit": "jest --config jest.config.ts --testNamePattern=\"^(?!.*integration)\"",
+    "test:watch": "jest --config jest.config.ts --watch",
+    "test:coverage": "jest --config jest.config.ts --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .ts",
+    "calibrate": "npx tsx calibration/run-all.ts",
+    "calibrate:phase": "npx tsx calibration/run-all.ts"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "mammoth": "^1.8.0",
+    "pdf-parse": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.0.0",
+    "@types/pdf-parse": "^1.1.4",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.35.3"
+  },
+  "peerDependencies": {
+    "electron": ">=32.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

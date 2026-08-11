@@ -1,0 +1,24 @@
+# GBNF grammar for progress-evaluation.schema.json
+# Evaluation of user's work against a roadmap step goal
+
+root ::= "{" ws
+  "\"step\"" ws ":" ws number ws "," ws
+  "\"step_title\"" ws ":" ws string ws "," ws
+  "\"is_complete\"" ws ":" ws boolean ws "," ws
+  "\"score\"" ws ":" ws number ws "," ws
+  "\"feedback\"" ws ":" ws string ws "," ws
+  "\"suggestions\"" ws ":" ws string-array ws "," ws
+  "\"ready_to_advance\"" ws ":" ws boolean
+  (ws "," ws "\"understanding_score\"" ws ":" ws number)?
+ws "}"
+
+string-array ::= "[" ws (string (ws "," ws string)*)? ws "]"
+boolean ::= "true" | "false"
+number  ::= [0-9] [0-9]? [0-9]?
+
+string ::= "\"" string-char* "\""
+string-char ::=
+  [^"\\"\x7F\x00-\x1F]
+  | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F])
+
+ws ::= ([ \t\n\r] ws)?

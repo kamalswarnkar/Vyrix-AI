@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "desirability-evaluation",
+  "title": "DesirabilityResult",
+  "description": "Initial desirability/demand evaluation at mission start (NOT full DVF)",
+  "type": "object",
+  "required": ["stage", "score", "problem_clarity", "demand_strength", "ready_for_ideation"],
+  "additionalProperties": false,
+  "properties": {
+    "stage": {
+      "type": "string",
+      "enum": ["initial_desirability"]
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Overall desirability score (0-100)"
+    },
+    "problem_clarity": {
+      "type": "object",
+      "required": ["summary", "score"],
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string", "minLength": 5 },
+        "score":   { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "demand_strength": {
+      "type": "object",
+      "required": ["summary", "score"],
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string", "minLength": 5 },
+        "score":   { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["statement", "type"],
+        "additionalProperties": false,
+        "properties": {
+          "statement": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["evidence", "assumption", "unknown", "requires_validation"]
+          }
+        }
+      },
+      "maxItems": 10
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 10
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 10
+    },
+    "recommendations": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 10
+    },
+    "ready_for_ideation": {
+      "type": "boolean",
+      "description": "Whether the problem has enough clarity to proceed to ideation roadmap"
+    }
+  }
+}

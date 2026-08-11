@@ -1,0 +1,43 @@
+# GBNF grammar for interview-step.schema.json
+# Forces llama.cpp to output a valid InterviewStepResponse JSON object
+#
+# v2 fixes:
+#   - requires_clarification moved to optional (trailing field)
+#   - extracted values support string OR string-array (domain_keywords)
+#   - domain_keywords key added
+
+root ::= "{" ws
+  step-number-field ws "," ws
+  ai-message-field  ws "," ws
+  skip-field        ws "," ws
+  extracted-field
+  (ws "," ws requires-field)?
+ws "}"
+
+step-number-field ::= "\"step_number\""    ws ":" ws [1-6]
+ai-message-field  ::= "\"ai_message\""     ws ":" ws string
+skip-field        ::= "\"skip_next_step\""  ws ":" ws boolean
+requires-field    ::= "\"requires_clarification\"" ws ":" ws boolean
+extracted-field   ::= "\"extracted\""      ws ":" ws extracted-obj
+
+extracted-obj   ::= "{" ws extracted-pairs? ws "}"
+extracted-pairs ::= extracted-pair (ws "," ws extracted-pair)*
+extracted-pair  ::=
+    extracted-str-key        ws ":" ws string
+  | "\"domain_keywords\""    ws ":" ws string-array
+
+extracted-str-key ::=
+  "\"project_description\""
+  | "\"goals\""
+  | "\"understanding_level\""
+  | "\"output_type\""
+
+string-array ::= "[" ws (string (ws "," ws string)*)? ws "]"
+boolean      ::= "true" | "false"
+
+string ::= "\"" string-char* "\""
+string-char ::=
+  [^"\\"\x7F\x00-\x1F]
+  | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F])
+
+ws ::= ([ \t\n\r] ws)?

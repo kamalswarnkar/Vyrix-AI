@@ -1,0 +1,34 @@
+# Build artefacts
+node_modules
+.next
+out
+dist
+build
+.turbo
+
+# Source control
+.git
+.gitignore
+
+# Dev/test files that shouldn't be in the image
+electron/ai/__tests__
+electron/ai/calibration/results
+*.log
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+*.suo
+*.user
+
+# Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Large assets unlikely to be needed in calibration container
+public

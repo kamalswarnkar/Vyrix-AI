@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "decision",
+  "title": "DecisionResult",
+  "description": "AI-assisted decision after DVF evaluation: continue, improve, or redesign",
+  "type": "object",
+  "required": ["decision", "reasoning", "confidence", "next_steps"],
+  "additionalProperties": false,
+  "properties": {
+    "decision": {
+      "type": "string",
+      "enum": ["continue", "improve", "redesign"]
+    },
+    "reasoning": {
+      "type": "string",
+      "minLength": 10
+    },
+    "confidence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "next_steps": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "maxItems": 10
+    }
+  }
+}

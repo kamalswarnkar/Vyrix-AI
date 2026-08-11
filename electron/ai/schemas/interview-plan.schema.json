@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "interview-plan",
+  "title": "InterviewPlan",
+  "description": "AI-generated project roadmap — 5 to 10 structured steps",
+  "type": "object",
+  "required": ["steps", "total_steps", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "steps": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["step", "title", "description", "methodology"],
+        "additionalProperties": false,
+        "properties": {
+          "step": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 80
+          },
+          "description": {
+            "type": "string",
+            "minLength": 10
+          },
+          "methodology": {
+            "type": "string",
+            "description": "Research/design methodology used in this step (e.g., empathy mapping, proximity matrix)"
+          },
+          "estimated_duration": {
+            "type": "string",
+            "description": "Rough time estimate (e.g., '1-2 weeks')"
+          },
+          "deliverable": {
+            "type": "string",
+            "description": "Tangible output of this step"
+          }
+        }
+      }
+    },
+    "total_steps": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 10
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 20,
+      "description": "Brief overview of the complete project plan"
+    },
+    "approach": {
+      "type": "string",
+      "description": "Overall design/research methodology approach"
+    }
+  }
+}

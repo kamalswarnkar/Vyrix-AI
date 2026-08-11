@@ -1,0 +1,207 @@
+# Vyrix — Full Project Docker Environment
+#
+# Services (default — no profile required):
+#   ollama        — Ollama inference server (always needed for AI work)
+#
+# Services (profiles):
+#   calibrate     — Run the full calibration suite          (default profile, or explicit)
+#   test          — Run unit tests (no Ollama needed)       --profile test
+#   dev           — Interactive Node.js dev shell           --profile dev
+#   training      — Python ML environment for QLoRA         --profile training
+#   llama-server  — llama.cpp sidecar (GBNF grammars)      --profile sidecar
+#
+# ── Quick start ──────────────────────────────────────────────────────────────
+#
+#   # Run full calibration suite (first run pulls model ~5.4 GB)
+#   docker compose -f docker/docker-compose.yml up --abort-on-container-exit
+#
+#   # Run unit tests only (no Ollama required)
+#   docker compose -f docker/docker-compose.yml --profile test run --rm test
+#
+#   # Interactive AI dev shell (Ollama available inside)
+#   docker compose -f docker/docker-compose.yml --profile dev run --rm dev
+#
+#   # Prepare training dataset
+#   docker compose -f docker/docker-compose.yml --profile training run --rm training \
+#     python training/scripts/prepare_dataset.py
+#
+#   # Merge LoRA adapter into base model (after training on GPU machine)
+#   docker compose -f docker/docker-compose.yml --profile training run --rm training \
+#     python training/scripts/merge_adapter.py \
+#       --adapter /models/qlora_adapter \
+#       --base Qwen/Qwen2.5-VL-7B-Instruct \
+#       --output /models/vyrix-qwen-merged
+#
+#   # Grammar enforcement tests (requires GGUF model file)
+#   GGUF_MODELS_PATH=~/.vyrix/models \
+#     docker compose -f docker/docker-compose.yml --profile sidecar up --abort-on-container-exit
+#
+# ── Environment variables ────────────────────────────────────────────────────
+#   OLLAMA_MODELS_PATH   host path for Ollama model storage  (default: ~/.ollama)
+#   GGUF_MODELS_PATH     host path containing the GGUF file  (default: ~/.vyrix/models)
+#                        must contain: qwen2.5-vl-7b-q4_k_m.gguf
+#   VYRIX_MODEL          Ollama model tag  (default: qwen2.5-vl:7b-q4_K_M)
+#   HF_HOME              Hugging Face cache dir inside training container
+#
+# ── GPU passthrough (NVIDIA) ─────────────────────────────────────────────────
+#   Uncomment the `deploy` block in the ollama service.
+#   Requires: nvidia-container-toolkit on the host.
+#   For QLoRA training: also uncomment the `deploy` block in the training service.
+
+version: "3.9"
+
+services:
+
+  # ── Ollama inference server ──────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: vyrix-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - "${OLLAMA_MODELS_PATH:-~/.ollama}:/root/.ollama"
+    environment:
+      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_KEEP_ALIVE=5m
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    # Uncomment for NVIDIA GPU passthrough:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ── llama.cpp sidecar (profile: sidecar) ─────────────────────────────────────
+  # Required for GBNF grammar enforcement (phase 03). Ollama does NOT support grammars.
+  # Download the GGUF model first — see README §13b for instructions.
+  llama-server:
+    profiles: ["sidecar"]
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: vyrix-llama
+    ports:
+      - "8765:8765"
+    volumes:
+      - "${GGUF_MODELS_PATH:-~/.vyrix/models}:/models:ro"
+    command: >
+      --model /models/qwen2.5-vl-7b-q4_k_m.gguf
+      --host 0.0.0.0
+      --port 8765
+      --ctx-size 8192
+      -ngl 99
+      -np 1
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8765/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 90s
+
+  # ── Calibration runner (default) ─────────────────────────────────────────────
+  # Runs the full 16-phase calibration suite against Ollama.
+  # Results written to docker/calibration-results/ on the host.
+  calibrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: vyrix-calibrate
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      # Mount only the dirs that change during dev — node_modules stay from build layer
+      - ../electron/ai/calibration:/app/electron/ai/calibration:ro
+      - ../electron/ai/prompt:/app/electron/ai/prompt:ro
+      - ../electron/ai/schemas:/app/electron/ai/schemas:ro
+      - ../electron/ai/grammars:/app/electron/ai/grammars:ro
+      - ./calibration-results:/app/electron/ai/calibration/results:rw
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - VYRIX_MODEL=${VYRIX_MODEL:-qwen2.5-vl:7b-q4_K_M}
+      - SIDECAR_BASE_URL=http://llama-server:8765
+      - NODE_ENV=development
+    command: /pull-model.sh sh -c "cd /app/electron/ai && npm run calibrate"
+
+  # ── Unit test runner (profile: test) ─────────────────────────────────────────
+  # Runs deterministic unit tests only. No Ollama or live model required.
+  # Integration tests (ENABLE_INTEGRATION_TESTS=1) are excluded by default.
+  test:
+    profiles: ["test"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      # Mount full source for live code changes; preserve container's node_modules
+      - ../electron/ai:/app/electron/ai
+      - /app/electron/ai/node_modules
+    environment:
+      - NODE_ENV=test
+    command: sh -c "cd /app/electron/ai && npm run test:unit"
+
+  # ── Interactive AI dev shell (profile: dev) ───────────────────────────────────
+  # A live Node.js shell with Ollama available for manual testing and iteration.
+  # All source files are mounted — edits on the host are reflected immediately.
+  #
+  # Usage:
+  #   docker compose -f docker/docker-compose.yml --profile dev run --rm dev
+  #   # Inside the container:
+  #   cd electron/ai && npm run calibrate:phase -- 08
+  #   cd electron/ai && npx tsx some/script.ts
+  dev:
+    profiles: ["dev"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ../electron/ai:/app/electron/ai
+      - /app/electron/ai/node_modules
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - VYRIX_MODEL=${VYRIX_MODEL:-qwen2.5-vl:7b-q4_K_M}
+      - SIDECAR_BASE_URL=http://llama-server:8765
+      - NODE_ENV=development
+    stdin_open: true
+    tty: true
+    command: bash
+
+  # ── Training environment (profile: training) ─────────────────────────────────
+  # Python 3.11 environment for QLoRA dataset prep and model merge.
+  #
+  # NOTE: train_qlora.py requires a CUDA GPU with 24GB+ VRAM.
+  #       prepare_dataset.py and merge_adapter.py run CPU-only.
+  #
+  # Hugging Face model cache is written to GGUF_MODELS_PATH/hf-cache on the host
+  # so large model downloads survive container restarts.
+  training:
+    profiles: ["training"]
+    build:
+      context: ..
+      dockerfile: training/Dockerfile
+    volumes:
+      - ../training:/app/training
+      - ../electron/ai/calibration/results:/app/electron/ai/calibration/results:ro
+      - "${GGUF_MODELS_PATH:-~/.vyrix/models}:/models"
+    environment:
+      - HF_HOME=/models/hf-cache
+      - PYTHONUNBUFFERED=1
+    # Uncomment for NVIDIA GPU passthrough (required for train_qlora.py):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    command: python training/scripts/prepare_dataset.py
+
+volumes: {}

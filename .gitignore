@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+.next/
+out/
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Model files — too large for git; download via §13a or first-run wizard
+*.gguf
+*.bin
+*.safetensors
+
+# Calibration results — generated locally, not source
+electron/ai/calibration/results/
+electron/ai/node_modules/
+
+# Training data — generated from calibration results
+training/data/train.jsonl
+training/outputs/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Test coverage
+coverage/
+electron/ai/coverage/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo

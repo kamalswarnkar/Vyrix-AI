@@ -1,0 +1,20 @@
+# GBNF grammar for context-resolve.schema.json
+# @-mention to project context resolution
+
+root ::= "{" ws
+  "\"has_context\""  ws ":" ws boolean ws "," ws
+  "\"project_id\""   ws ":" ws string
+  (ws "," ws "\"project_title\""        ws ":" ws string)?
+  (ws "," ws "\"relevant_flow_ids\""    ws ":" ws string-array)?
+  (ws "," ws "\"context_summary\""      ws ":" ws string)?
+ws "}"
+
+string-array ::= "[" ws (string (ws "," ws string)*)? ws "]"
+
+boolean ::= "true" | "false"
+string ::= "\"" string-char* "\""
+string-char ::=
+  [^"\\"\x7F\x00-\x1F]
+  | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F])
+
+ws ::= ([ \t\n\r] ws)?

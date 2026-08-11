@@ -1,0 +1,40 @@
+# GBNF grammar for dvf-evaluation.schema.json
+# Full Desirability + Viability + Feasibility evaluation
+
+root ::= "{" ws
+  "\"stage\"" ws ":" ws "\"dvf_evaluation\"" ws "," ws
+  "\"version\"" ws ":" ws number ws "," ws
+  "\"desirability\"" ws ":" ws dimension ws "," ws
+  "\"viability\"" ws ":" ws dimension ws "," ws
+  "\"feasibility\"" ws ":" ws dimension ws "," ws
+  "\"overall_score\"" ws ":" ws number ws "," ws
+  "\"recommendation\"" ws ":" ws string ws "," ws
+  "\"ready_for_decision\"" ws ":" ws boolean
+  (ws "," ws "\"strengths\"" ws ":" ws string-array)?
+  (ws "," ws "\"gaps\"" ws ":" ws string-array)?
+ws "}"
+
+dimension ::= "{" ws
+  "\"score\"" ws ":" ws number ws "," ws
+  "\"summary\"" ws ":" ws string
+  (ws "," ws "\"evidence\"" ws ":" ws finding-array)?
+  (ws "," ws "\"risks\"" ws ":" ws string-array)?
+ws "}"
+
+finding-array ::= "[" ws (finding (ws "," ws finding)*)? ws "]"
+finding ::= "{" ws
+  "\"statement\"" ws ":" ws string ws "," ws
+  "\"type\"" ws ":" ws evidence-type
+ws "}"
+evidence-type ::= "\"evidence\"" | "\"assumption\"" | "\"unknown\"" | "\"requires_validation\""
+
+string-array ::= "[" ws (string (ws "," ws string)*)? ws "]"
+boolean ::= "true" | "false"
+number  ::= [0-9] [0-9]? [0-9]?
+
+string ::= "\"" string-char* "\""
+string-char ::=
+  [^"\\"\x7F\x00-\x1F]
+  | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F])
+
+ws ::= ([ \t\n\r] ws)?

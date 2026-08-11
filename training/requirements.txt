@@ -1,0 +1,28 @@
+# Vyrix Beta-2 — Training dependencies
+#
+# Used by:
+#   prepare_dataset.py  — no heavy deps; stdlib only (this file not strictly needed for it)
+#   train_qlora.py      — requires CUDA GPU with 24GB+ VRAM; will NOT run on CPU
+#   merge_adapter.py    — CPU-compatible; merges LoRA adapter into base model
+#
+# Install:
+#   pip install -r training/requirements.txt
+#
+# For GPU training, replace the torch line with the CUDA variant:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+# Core ML stack
+torch>=2.2.0
+transformers>=4.40.0
+peft>=0.10.0
+trl>=0.8.6
+datasets>=2.18.0
+accelerate>=0.28.0
+
+# 4-bit quantization — needs CUDA for training; install only errors at runtime, not install time
+bitsandbytes>=0.43.0
+
+# Utilities
+pyyaml>=6.0
+huggingface_hub>=0.22.0
+safetensors>=0.4.0

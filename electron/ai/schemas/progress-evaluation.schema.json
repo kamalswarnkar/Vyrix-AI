@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "progress-evaluation",
+  "title": "ProgressEvaluation",
+  "description": "Evaluation of user's work/upload against a roadmap step goal",
+  "type": "object",
+  "required": ["step", "step_title", "is_complete", "score", "feedback", "suggestions", "ready_to_advance"],
+  "additionalProperties": false,
+  "properties": {
+    "step": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "step_title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "is_complete": {
+      "type": "boolean"
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "feedback": {
+      "type": "string",
+      "minLength": 10
+    },
+    "suggestions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 5
+    },
+    "ready_to_advance": {
+      "type": "boolean"
+    },
+    "understanding_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Optional: how well the user understands the domain/methodology for this step"
+    }
+  }
+}

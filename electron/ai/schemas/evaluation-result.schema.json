@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "evaluation-result",
+  "title": "EvaluationResult",
+  "description": "AI assessment of a completed project step",
+  "type": "object",
+  "required": ["is_valid", "feedback", "suggestions", "ready_to_advance"],
+  "additionalProperties": false,
+  "properties": {
+    "is_valid": {
+      "type": "boolean",
+      "description": "Whether the step output meets the success criteria"
+    },
+    "feedback": {
+      "type": "string",
+      "minLength": 10,
+      "description": "Detailed assessment of what the user did"
+    },
+    "suggestions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 5 },
+      "maxItems": 5,
+      "description": "Specific, actionable improvement suggestions"
+    },
+    "ready_to_advance": {
+      "type": "boolean",
+      "description": "Whether the user can proceed to the next step"
+    },
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Numeric quality score for this step output"
+    },
+    "strengths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 3,
+      "description": "What the user did well"
+    }
+  }
+}
